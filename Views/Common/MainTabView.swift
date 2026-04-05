@@ -261,6 +261,7 @@ private struct PlateBuilderContent: View {
     @State private var savedAlert = false
     @State private var savedMeal: SavedMeal? = nil
     @State private var listVisible = false
+    @State private var showOutcomeSheet = false
 
     private var plateSuggestions: [ScoredMenuItem] {
         recEngine.suggestionsToCompletePlate(plate: plateVM.plate, settings: appState.settings)
@@ -331,14 +332,124 @@ private struct PlateBuilderContent: View {
             .padding(.vertical, 16)
         }
         .alert("Meal Saved!", isPresented: $savedAlert) {
-            Button("OK") {}
+            Button("Rate this meal") { showOutcomeSheet = true }
+            Button("Skip", role: .cancel) {}
         } message: {
             if let m = savedMeal {
-                Text("\(m.diningHallName) • \(Int(m.totalCalories)) kcal saved to history")
+                Text("\(m.diningHallName) • \(Int(m.totalCalories)) kcal saved to history\n\nHow did this meal make you feel?")
+            }
+        }
+        .sheet(isPresented: $showOutcomeSheet) {
+            if let meal = savedMeal {
+                MealOutcomeSheet(mealId: meal.id)
             }
         }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) { listVisible = true }
+        }
+    }
+}
+
+// MARK: - Meal Outcome Sheet
+
+struct MealOutcomeSheet: View {
+    let mealId: UUID
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var energy: Int = 3
+    @State private var fullness: Int = 3
+    @State private var discomfort: Int = 1
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                Text("How did this meal make you feel?")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(.top, 16)
+
+                VStack(spacing: 24) {
+                    OutcomeSlider(label: "Energy Level", icon: "bolt.fill",
+                                  color: Color(hex: "34C759"), value: $energy)
+                    OutcomeSlider(label: "Fullness", icon: "stomach",
+                                  color: Color.macroCarbs, value: $fullness)
+                    OutcomeSlider(label: "Discomfort", icon: "exclamationmark.triangle",
+                                  color: Color(hex: "FF9500"), value: $discomfort)
+                }
+                .padding(.horizontal, 24)
+
+                Button {
+                    HapticService.shared.success()
+                    let outcome = MealOutcome(energy: energy, fullness: fullness, discomfort: discomfort)
+                    OutcomeAnalysisService.shared.record(outcome: outcome, for: mealId)
+                    dismiss()
+                } label: {
+                    Text("Save Feedback")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.untGreenPrimary)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
+            }
+            .navigationTitle("Meal Feedback")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Skip") { dismiss() }
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+private struct OutcomeSlider: View {
+    let label: String
+    let icon: String
+    let color: Color
+    @Binding var value: Int
+
+    private let labels1to5 = ["Very Low", "Low", "Moderate", "High", "Very High"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Spacer()
+                Text(labels1to5[max(0, min(4, value - 1))])
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.textSecondary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(1...5, id: \.self) { level in
+                    Button {
+                        HapticService.shared.light()
+                        value = level
+                    } label: {
+                        Circle()
+                            .fill(level <= value ? color : Color.surfaceRaised)
+                            .frame(width: 36, height: 36)
+                            .overlay {
+                                Text("\(level)")
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    .foregroundStyle(level <= value ? .white : Color.textTertiary)
+                            }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
         }
     }
 }

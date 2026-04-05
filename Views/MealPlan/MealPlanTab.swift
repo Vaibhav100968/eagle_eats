@@ -15,6 +15,7 @@ import MapKit
 struct MealPlanTab: View {
     @StateObject private var mealPlanService = MealPlanService.shared
     @StateObject private var budgetEngine    = BudgetEngine.shared
+    @StateObject private var valueEngine     = ValueEngine.shared
 
     @State private var showWebView:    Bool = false
     @State private var webLoading:     Bool = false
@@ -141,11 +142,13 @@ struct MealPlanTab: View {
                 if let flex = info.flexBalance {
                     budgetEngine.recordBalanceUpdate(newBalance: flex)
                 }
+                valueEngine.evaluate()
             } else if case .stale(let info) = new {
                 cardsVisible = true
                 if let flex = info.flexBalance {
                     budgetEngine.recomputeWith(balance: flex)
                 }
+                valueEngine.evaluate()
             } else {
                 cardsVisible = false
             }
@@ -320,10 +323,26 @@ struct MealPlanTab: View {
                     .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.22), value: cardsVisible)
                 }
 
+                // Recovery Plan
+                if let plan = budgetEngine.recoveryPlan {
+                    RecoveryPlanCard(plan: plan)
+                        .padding(.horizontal, 20)
+                        .opacity(cardsVisible ? 1 : 0)
+                        .offset(y: cardsVisible ? 0 : 24)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.24), value: cardsVisible)
+                }
+
+                // Best Value Options
+                if !valueEngine.bestValueItems.isEmpty {
+                    BestValueSection(items: valueEngine.bestValueItems)
+                        .opacity(cardsVisible ? 1 : 0)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.28), value: cardsVisible)
+                }
+
                 AddFundsButton()
                     .padding(.horizontal, 20)
                     .opacity(cardsVisible ? 1 : 0)
-                    .animation(.easeIn(duration: 0.3).delay(0.26), value: cardsVisible)
+                    .animation(.easeIn(duration: 0.3).delay(0.32), value: cardsVisible)
 
                 lastUpdatedRow(info: info, isStale: isStale)
                     .padding(.horizontal, 22)
@@ -741,6 +760,144 @@ private struct LinearProgressBar: View {
             }
         }
         .onAppear { progress = 0.85 }
+    }
+}
+
+// MARK: - Recovery Plan Card
+
+private struct RecoveryPlanCard: View {
+    let plan: RecoveryPlan
+
+    private var borderColor: Color {
+        switch plan.urgency {
+        case .critical: return Color(hex: "FF3B30")
+        case .warning:  return Color(hex: "FF9500")
+        case .caution:  return Color(hex: "F59E0B")
+        default:        return Color(hex: "34C759")
+        }
+    }
+
+    private var urgencyLabel: String {
+        switch plan.urgency {
+        case .critical: return "Recovery Plan — Critical"
+        case .warning:  return "Recovery Plan — Warning"
+        case .caution:  return "Spending Adjustment"
+        default:        return "Budget Status"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(borderColor)
+                Text(urgencyLabel)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(borderColor)
+            }
+
+            ForEach(plan.actions) { action in
+                HStack(spacing: 10) {
+                    Image(systemName: action.icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(borderColor.opacity(0.8))
+                        .frame(width: 20)
+                    Text(action.text)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    if action.savings > 0 {
+                        Text(String(format: "+$%.0f/wk", action.savings))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color(hex: "34C759"))
+                    }
+                }
+            }
+
+            if plan.estimatedWeeklySavings > 0 {
+                Divider()
+                HStack {
+                    Text("Est. weekly savings")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.textSecondary)
+                    Spacer()
+                    Text(String(format: "$%.2f", plan.estimatedWeeklySavings))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "34C759"))
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.surfaceBase)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(borderColor.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Best Value Section
+
+private struct BestValueSection: View {
+    let items: [ValuedItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hex: "34C759"))
+                Text("Best Value Options")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.textPrimary)
+            }
+            .padding(.horizontal, 22)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(items.prefix(5)) { valued in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(valued.item.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.textPrimary)
+                                .lineLimit(2)
+
+                            HStack(spacing: 8) {
+                                VStack(spacing: 1) {
+                                    Text("\(Int(valued.caloriesPerDollar))")
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.macroCalories)
+                                    Text("cal/$")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundStyle(Color.textTertiary)
+                                }
+                                VStack(spacing: 1) {
+                                    Text(String(format: "%.1f", valued.proteinPerDollar))
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.macroProtein)
+                                    Text("P/$")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundStyle(Color.textTertiary)
+                                }
+                            }
+
+                            Text(valued.hallName)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Color.textTertiary)
+                                .lineLimit(1)
+                        }
+                        .padding(10)
+                        .frame(width: 120, alignment: .leading)
+                        .background(Color.surfaceBase)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                    }
+                }
+                .padding(.horizontal, 22)
+            }
+        }
     }
 }
 

@@ -86,6 +86,40 @@ final class NotificationService: ObservableObject {
         UNUserNotificationCenter.current().add(request)
     }
 
+    // MARK: - Budget Overspend Alert
+
+    func scheduleBudgetOverspendAlert(dailyBudget: Double, spent: Double) {
+        guard isAuthorized, spent > dailyBudget else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Daily Budget Exceeded"
+        content.body = String(format: "You've spent $%.2f today vs your $%.2f daily target", spent, dailyBudget)
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "budget-overspend-\(Date().timeIntervalSince1970)",
+            content: content, trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Nearby Recommendation Alert
+
+    func scheduleNearbyRecommendation(hallName: String, reason: String) {
+        guard isAuthorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Dining Suggestion"
+        content.body = "You're near \(hallName) — \(reason)"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "nearby-\(hallName)-\(Date().timeIntervalSince1970)",
+            content: content, trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     func removeAllPending() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }

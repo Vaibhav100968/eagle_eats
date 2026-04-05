@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CoreLocation
 
 // MARK: - Recommendation Engine
 // Returns "best dining hall right now" and top menu items based on:
@@ -21,8 +22,12 @@ final class RecommendationEngine: ObservableObject {
     @Published private(set) var hallRecommendations: [HallRecommendation] = []
     @Published private(set) var topItems: [ScoredMenuItem] = []
 
-    private let dining = DiningService.shared
-    private let budget = BudgetEngine.shared
+    @Published private(set) var explanation: RecommendationExplanation?
+
+    private let dining    = DiningService.shared
+    private let budget    = BudgetEngine.shared
+    private let crowd     = CrowdFlowService.shared
+    private let location  = LocationService.shared
 
     private init() {}
 
@@ -86,13 +91,37 @@ final class RecommendationEngine: ObservableObject {
 
             // 6. Cost efficiency (if budget data available)
             if budget.snapshot.urgency == .critical || budget.snapshot.urgency == .warning {
-                // Boost halls with more low-calorie (presumably cheaper) options
                 let lowCalCount = items.filter { $0.nutritionLoaded && $0.nutrition.calories < 400 }.count
                 let costScore = min(Double(lowCalCount) / 5.0, 1.0) * Weights.costValue
                 score += costScore
                 if lowCalCount > 3 { reasons.append(.costEfficient) }
             } else {
-                score += Weights.costValue * 0.5 // neutral
+                score += Weights.costValue * 0.5
+            }
+
+            // 7. Crowd level bonus
+            let snap = crowd.snapshot(for: hall.id)
+            if snap.level == .low {
+                score += 8
+                reasons.append(.lowCrowd)
+            } else if snap.level == .high {
+                score -= 5
+            }
+
+            // 8. Proximity bonus
+            if let userLoc = location.currentLocation {
+                let user = CLLocation(latitude: userLoc.latitude, longitude: userLoc.longitude)
+                let dest = CLLocation(latitude: hall.latitude, longitude: hall.longitude)
+                let walkMin = Int(user.distance(from: dest) / 80.0)
+                if walkMin <= 5 {
+                    score += 6
+                    reasons.append(.nearYou(minutes: walkMin))
+                }
+            }
+
+            // 9. Variety bonus
+            if items.count > 15 {
+                reasons.append(.highVariety(count: items.count))
             }
 
             // Score top items for this hall
@@ -116,6 +145,41 @@ final class RecommendationEngine: ObservableObject {
             .sorted { $0.score > $1.score }
             .prefix(10)
             .map { $0 }
+
+        // Generate explanation for top recommendation
+        if let top = hallRecommendations.first {
+            explanation = generateExplanation(for: top, allRecs: hallRecommendations)
+        } else {
+            explanation = nil
+        }
+    }
+
+    // MARK: - Explanation Generation
+
+    private func generateExplanation(
+        for rec: HallRecommendation,
+        allRecs: [HallRecommendation]
+    ) -> RecommendationExplanation {
+        let reasons = rec.reasons.prefix(4).map(\.explanationText)
+
+        var tradeoffs: [String] = []
+        if let second = allRecs.dropFirst().first {
+            let scoreDiff = rec.score - second.score
+            if scoreDiff < 10 {
+                tradeoffs.append("\(second.hall.name) is a close alternative (score: \(Int(second.score)))")
+            }
+        }
+
+        let snap = crowd.snapshot(for: rec.hall.id)
+        if snap.level == .high {
+            tradeoffs.append("Expect longer wait times due to current crowd levels")
+        }
+
+        if !rec.hall.isOpen {
+            tradeoffs.append("This hall is currently closed — showing for upcoming meals")
+        }
+
+        return RecommendationExplanation(reasons: Array(reasons), tradeoffs: tradeoffs)
     }
 
     // MARK: - Plate Completion Suggestions

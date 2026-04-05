@@ -146,3 +146,20 @@ struct SemesterConfig: Codable, Equatable {
         return Double(daysElapsed) / Double(totalDays)
     }
 }
+
+// MARK: - Recovery Plan
+
+struct RecoveryPlan {
+    let urgency: BudgetUrgency
+    let actions: [RecoveryAction]
+    let estimatedWeeklySavings: Double
+    let targetDailyBudget: Double
+    let daysToRecovery: Int?
+}
+
+struct RecoveryAction: Identifiable {
+    let id = UUID()
+    let icon: String
+    let text: String
+    let savings: Double
+}

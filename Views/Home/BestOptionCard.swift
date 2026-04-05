@@ -6,6 +6,7 @@ import SwiftUI
 
 struct BestOptionCard: View {
     let recommendation: HallRecommendation
+    var explanation: RecommendationExplanation? = nil
     var onSelectHall: ((DiningHall) -> Void)? = nil
     var onSelectItem: ((MenuItem) -> Void)? = nil
 
@@ -83,6 +84,34 @@ struct BestOptionCard: View {
                 .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
             }
             .buttonStyle(DiningCardButtonStyle())
+
+            // Explanation bullets
+            if let explanation = explanation, !explanation.reasons.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(explanation.reasons.prefix(3), id: \.self) { reason in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.untGreenPrimary)
+                                .frame(width: 5, height: 5)
+                            Text(reason)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                    if let tradeoff = explanation.tradeoffs.first {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Color.textTertiary)
+                            Text(tradeoff)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+                .padding(.leading, 4)
+            }
 
             // Top recommended items peek
             if !recommendation.topItems.isEmpty {

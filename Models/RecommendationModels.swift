@@ -28,14 +28,17 @@ struct ScoredMenuItem: Identifiable {
 
 /// Why something was recommended.
 enum RecommendationReason: Equatable {
-    case macroMatch(macro: String, percent: Int)    // "Matches 85% of your protein goal"
-    case dietaryMatch(tag: String)                  // "Vegan options available"
-    case costEfficient                              // "Best value for dining dollars"
-    case openNow                                    // "Currently serving"
-    case highProtein                                // "High protein options"
-    case lowCalorie                                 // "Under your calorie budget"
-    case favoriteHall                               // "One of your favorites"
-    case completesPlate(macro: String)              // "Fills your remaining carb goal"
+    case macroMatch(macro: String, percent: Int)
+    case dietaryMatch(tag: String)
+    case costEfficient
+    case openNow
+    case highProtein
+    case lowCalorie
+    case favoriteHall
+    case completesPlate(macro: String)
+    case lowCrowd
+    case nearYou(minutes: Int)
+    case highVariety(count: Int)
 
     var displayText: String {
         switch self {
@@ -47,6 +50,25 @@ enum RecommendationReason: Equatable {
         case .lowCalorie:                       return "Lower calorie"
         case .favoriteHall:                     return "Your favorite"
         case .completesPlate(let macro):        return "Completes \(macro)"
+        case .lowCrowd:                         return "Low crowd"
+        case .nearYou(let min):                 return "\(min) min away"
+        case .highVariety(let count):           return "\(count) options"
+        }
+    }
+
+    var explanationText: String {
+        switch self {
+        case .macroMatch(let macro, let pct):   return "Has items matching \(pct)% of your \(macro.lowercased()) goal"
+        case .dietaryMatch(let tag):            return "\(tag) options are available on today's menu"
+        case .costEfficient:                    return "Best value for your dining dollars right now"
+        case .openNow:                          return "Currently serving \(MealPeriod.current().rawValue.lowercased())"
+        case .highProtein:                      return "Multiple high-protein items (20g+) on the menu"
+        case .lowCalorie:                       return "Options that fit within your remaining calorie budget"
+        case .favoriteHall:                     return "One of your starred dining halls"
+        case .completesPlate(let macro):        return "Items here can fill your remaining \(macro.lowercased()) gap"
+        case .lowCrowd:                         return "Currently low crowd — short wait times expected"
+        case .nearYou(let min):                 return "About \(min) minutes walking from your location"
+        case .highVariety(let count):           return "\(count) menu items to choose from right now"
         }
     }
 
@@ -60,6 +82,9 @@ enum RecommendationReason: Equatable {
         case .lowCalorie:       return "scalemass.fill"
         case .favoriteHall:     return "star.fill"
         case .completesPlate:   return "plus.circle.fill"
+        case .lowCrowd:         return "person"
+        case .nearYou:          return "figure.walk"
+        case .highVariety:      return "square.grid.2x2"
         }
     }
 
@@ -73,8 +98,18 @@ enum RecommendationReason: Equatable {
         case .lowCalorie:       return .macroFiber
         case .favoriteHall:     return .macroFat
         case .completesPlate:   return .untGreenMedium
+        case .lowCrowd:         return Color(hex: "34C759")
+        case .nearYou:          return .macroCarbs
+        case .highVariety:      return .untGreenPrimary
         }
     }
+}
+
+// MARK: - Recommendation Explanation
+
+struct RecommendationExplanation {
+    let reasons: [String]
+    let tradeoffs: [String]
 }
 
 // MARK: - Filter Models

@@ -8,8 +8,10 @@ struct HomeView: View {
     @EnvironmentObject private var diningService: DiningService
     @EnvironmentObject private var plateVM:       PlateViewModel
 
-    @StateObject private var recEngine = RecommendationEngine.shared
+    @StateObject private var recEngine      = RecommendationEngine.shared
     @StateObject private var locationService = LocationService.shared
+    @StateObject private var contextEngine   = ContextEngine.shared
+    @StateObject private var habitEngine     = HabitEngine.shared
 
     @State private var selectedHall:      DiningHall?     = nil
     @State private var headerVisible:     Bool            = false
@@ -56,10 +58,21 @@ struct HomeView: View {
                                 .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.3), value: headerVisible)
                         }
 
+                        // MARK: Right Now (Context Engine)
+                        if let ctx = contextEngine.recommendation {
+                            RightNowSection(
+                                recommendation: ctx,
+                                onSelect: { selectedHall = $0 }
+                            )
+                            .padding(.horizontal, 22)
+                            .padding(.bottom, 20)
+                        }
+
                         // MARK: Best Option Recommendation
                         if let topRec = recEngine.hallRecommendations.first, topRec.score > 20 {
                             BestOptionCard(
                                 recommendation: topRec,
+                                explanation: recEngine.explanation,
                                 onSelectHall: { selectedHall = $0 }
                             )
                             .padding(.bottom, 28)
@@ -83,6 +96,13 @@ struct HomeView: View {
 
                         // MARK: Dining Dollars Locations
                         diningDollarsSection
+                            .padding(.bottom, 24)
+
+                        // MARK: Your Patterns (Habit Engine)
+                        if !habitEngine.insights.isEmpty {
+                            HabitInsightsSection(insights: habitEngine.insights)
+                                .padding(.horizontal, 22)
+                        }
 
                         Spacer().frame(height: 90)
                     }
@@ -122,6 +142,8 @@ struct HomeView: View {
                     plate: plateVM.plate,
                     favoriteIds: appState.favoriteHallIds
                 )
+                contextEngine.evaluate()
+                habitEngine.analyze()
             }
             if locationService.authorizationStatus == .notDetermined {
                 locationService.requestPermission()
@@ -462,6 +484,118 @@ private struct OpenHallChip: View {
             )
         }
         .buttonStyle(DiningCardButtonStyle())
+    }
+}
+
+// MARK: - Right Now Section
+
+private struct RightNowSection: View {
+    let recommendation: ContextRecommendation
+    var onSelect: ((DiningHall) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.badge.checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.macroCarbs)
+                Text(recommendation.timeWindow.uppercased())
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.macroCarbs)
+                    .letterSpacing(0.5)
+            }
+
+            Button { onSelect?(recommendation.hall) } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: recommendation.hall.gradientStart).opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: recommendation.hall.iconName)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color(hex: recommendation.hall.gradientStart))
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(recommendation.hall.name)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.textPrimary)
+
+                        HStack(spacing: 6) {
+                            ForEach(recommendation.factors.prefix(3)) { factor in
+                                HStack(spacing: 3) {
+                                    Circle()
+                                        .fill(Color(hex: factor.impact.tint))
+                                        .frame(width: 5, height: 5)
+                                    Text(factor.text)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(Color.textSecondary)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.textTertiary)
+                }
+                .padding(14)
+                .background(Color.surfaceBase)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 3)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+}
+
+// MARK: - Habit Insights Section
+
+private struct HabitInsightsSection: View {
+    let insights: [HabitInsight]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hex: "8B5CF6"))
+                Text("Your Patterns")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.textPrimary)
+            }
+
+            ForEach(insights.prefix(3)) { insight in
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(hex: insight.category.tint).opacity(0.1))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: insight.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(hex: insight.category.tint))
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(insight.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.textPrimary)
+                        Text(insight.description)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.surfaceBase)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
     }
 }
 

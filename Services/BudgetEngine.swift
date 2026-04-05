@@ -223,4 +223,80 @@ final class BudgetEngine: ObservableObject {
 
         return result
     }
+
+    // MARK: - Recovery Plan
+
+    var recoveryPlan: RecoveryPlan? {
+        guard snapshot.urgency == .critical || snapshot.urgency == .warning || snapshot.urgency == .caution else {
+            return nil
+        }
+
+        var actions: [RecoveryAction] = []
+        var estimatedSavings: Double = 0
+
+        let dailyOverspend = max(0, snapshot.averageDailySpend - snapshot.dailyBudget)
+        let weeklyOverspend = max(0, snapshot.averageWeeklySpend - snapshot.weeklyBudget)
+
+        switch snapshot.urgency {
+        case .critical:
+            actions.append(RecoveryAction(
+                icon: "fork.knife.circle",
+                text: "Use dining hall swipes exclusively for 2 weeks",
+                savings: dailyOverspend * 14
+            ))
+            estimatedSavings += dailyOverspend * 14
+
+            actions.append(RecoveryAction(
+                icon: "xmark.circle",
+                text: "Avoid all retail dining dollar purchases",
+                savings: weeklyOverspend * 0.6
+            ))
+            estimatedSavings += weeklyOverspend * 0.6
+
+            actions.append(RecoveryAction(
+                icon: "dollarsign.arrow.circlepath",
+                text: String(format: "Cap daily flex spend at $%.2f", snapshot.dailyBudget),
+                savings: dailyOverspend * 7
+            ))
+            estimatedSavings += dailyOverspend * 7
+
+        case .warning:
+            actions.append(RecoveryAction(
+                icon: "building.2",
+                text: "Eat at dining halls 4+ times this week",
+                savings: dailyOverspend * 4
+            ))
+            estimatedSavings += dailyOverspend * 4
+
+            actions.append(RecoveryAction(
+                icon: "chart.line.downtrend.xyaxis",
+                text: String(format: "Reduce daily spending by $%.2f", dailyOverspend),
+                savings: dailyOverspend * 7
+            ))
+            estimatedSavings += dailyOverspend * 7
+
+        case .caution:
+            actions.append(RecoveryAction(
+                icon: "lightbulb",
+                text: "Swap 2 retail meals for dining hall swipes per week",
+                savings: dailyOverspend * 2
+            ))
+            estimatedSavings += dailyOverspend * 2
+
+        default:
+            break
+        }
+
+        guard !actions.isEmpty else { return nil }
+
+        return RecoveryPlan(
+            urgency: snapshot.urgency,
+            actions: actions,
+            estimatedWeeklySavings: max(0, estimatedSavings),
+            targetDailyBudget: snapshot.dailyBudget,
+            daysToRecovery: estimatedSavings > 0
+                ? Int(ceil(max(0, snapshot.averageDailySpend - snapshot.dailyBudget) * Double(snapshot.daysRemaining) / estimatedSavings))
+                : nil
+        )
+    }
 }
