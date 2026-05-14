@@ -16,7 +16,10 @@ targets:
           - project.yml
           - "*.xcodeproj/**"
           - ".gitignore"
+          - ".claude/**"
           - "EagleEatsWidget/**"
+          - "backend/**"
+          - "Secrets.plist.example"
     info:
       path: Info.plist
       properties:

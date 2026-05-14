@@ -51,6 +51,14 @@ Secrets/
 credentials.json
 google-services.json
 
+# Eagle Eats secrets — NEVER commit real keys
+Secrets.plist
+backend/lambda_scraper/.env
+backend/lambda_scraper/lambda_package.zip
+backend/lambda_scraper/package/
+backend/lambda_scraper/__pycache__/
+backend/lambda_scraper/.venv/
+
 # Archives
 *.ipa
 *.dSYM.zip

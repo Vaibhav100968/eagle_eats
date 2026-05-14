@@ -2,21 +2,23 @@ import Foundation
 import Combine
 
 // MARK: - Dining Service
-// Data source: https://diningmenus.unt.edu
-// - Menu page  : ?locationID={id}&date={MM/dd/yyyy}
-// - Nutrition  : label.aspx?recipeNum={recipeID}
+// Data source: Supabase (Postgres) — populated by AWS Lambda scraper at 5 AM CST daily.
+// The app reads pre-scraped menu data via Supabase REST API.
+// No more live HTML scraping from the iOS app.
 //
-// LocationID map (confirmed from page navigation):
-//   10 → Mean Greens Café  |  15 → Champs  |  20 → Bruceteria
-//   25 → Kitchen West      |  31 → Eagle Landing
+// Supabase tables:
+//   dining_halls    — static hall metadata
+//   menu_items      — daily menus (hall_id + date index)
+//   nutrition_info  — nutrition data keyed by recipe_id
 
 @MainActor
 final class DiningService: ObservableObject {
 
     static let shared = DiningService()
 
-    private let baseURL  = "https://diningmenus.unt.edu"
     private let session: URLSession
+    private let supabaseURL: String
+    private let supabaseKey: String
 
     @Published var halls: [DiningHall] = DiningHall.sampleHalls
     @Published var menusByHall: [String: [MenuItem]] = [:]
@@ -24,63 +26,197 @@ final class DiningService: ObservableObject {
     @Published var lastUpdated: Date? = nil
     @Published var fetchError: String? = nil
 
-    // Nutrition cache keyed by recipeID ("460007", etc.)
-    // Shared across all halls since the same recipe can appear in multiple locations.
     @Published private(set) var nutritionCache: [String: NutritionInfo] = [:]
     private var nutritionFetchInProgress: Set<String> = []
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
-        config.requestCachePolicy = .reloadRevalidatingCacheData
+        config.timeoutIntervalForRequest = 15
         session = URLSession(configuration: config)
+
+        supabaseURL = SupabaseConfig.url.absoluteString
+        supabaseKey = SupabaseConfig.anonKey
+    }
+
+    // MARK: - Supabase REST Helpers
+
+    private func supabaseRequest(path: String, query: String = "") -> URLRequest {
+        let urlString = "\(supabaseURL)/rest/v1/\(path)?\(query)"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(supabaseKey)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
+    private func fetch<T: Decodable>(_ type: T.Type, path: String, query: String) async throws -> T {
+        let request = supabaseRequest(path: path, query: query)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw DiningError.httpError(statusCode)
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(type, from: data)
     }
 
     // MARK: - Public API
 
-    /// Fetch menus for all halls for the effective date (today, or tomorrow if all closed).
+    /// Fetch today's menus for all halls from Supabase.
     func fetchAllMenus() async {
-        isLoading  = true
+        isLoading = true
         fetchError = nil
 
-        let date = effectiveMenuDate
+        let dateStr = isoDateString(effectiveMenuDate)
 
-        await withTaskGroup(of: (String, [MenuItem]?).self) { group in
-            for hall in halls {
-                group.addTask { [weak self] in
-                    guard let self else { return (hall.id, nil) }
-                    let items = await self.fetchMenuForHall(hall, date: date)
-                    return (hall.id, items)
-                }
+        do {
+            // Fetch all menu items for today, joined with nutrition
+            let query = "menu_date=eq.\(dateStr)&select=*"
+            let rows: [SupabaseMenuItem] = try await fetch([SupabaseMenuItem].self,
+                                                            path: "menu_items",
+                                                            query: query)
+
+            // Collect unique recipe IDs to batch-fetch nutrition
+            let recipeIds = Set(rows.map(\.recipe_id))
+            let nutritionMap = await fetchNutritionBatch(recipeIds: recipeIds)
+
+            // Group by hall and convert to MenuItem
+            var grouped: [String: [MenuItem]] = [:]
+            for row in rows {
+                let nutrition = nutritionMap[row.recipe_id]
+                let item = row.toMenuItem(nutrition: nutrition)
+                grouped[row.hall_id, default: []].append(item)
             }
-            for await (hallId, items) in group {
-                if let items {
-                    menusByHall[hallId] = items
-                    print("[DiningService] \(hallId): \(items.count) items loaded")
-                } else {
-                    print("[DiningService] \(hallId): fetch returned nil — hall will show empty state")
-                    // Do NOT populate with sample/fake data on failure
-                    if menusByHall[hallId] == nil {
-                        menusByHall[hallId] = []   // explicit empty → shows "no menu" state
-                    }
-                }
+
+            // Update published state
+            for hall in halls {
+                menusByHall[hall.id] = grouped[hall.id] ?? []
+            }
+
+            lastUpdated = Date()
+            print("[DiningService] Loaded \(rows.count) items from Supabase for \(dateStr)")
+
+        } catch {
+            print("[DiningService] Supabase fetch error: \(error)")
+            fetchError = error.localizedDescription
+
+            // If Supabase is down, keep any existing data
+            for hall in halls where menusByHall[hall.id] == nil {
+                menusByHall[hall.id] = []
             }
         }
 
-        lastUpdated = Date()
-        isLoading   = false
-    }
-
-    /// Fetch menu for a single hall (called on detail view appear if not yet loaded).
-    func fetchMenuForHallIfNeeded(_ hall: DiningHall) async {
-        guard menusByHall[hall.id] == nil else { return }
-        isLoading = true
-        let items = await fetchMenuForHall(hall, date: effectiveMenuDate)
-        menusByHall[hall.id] = items ?? []
         isLoading = false
     }
 
-    // MARK: - Today / Tomorrow logic
+    /// Fetch menu for a single hall if not yet loaded.
+    func fetchMenuForHallIfNeeded(_ hall: DiningHall) async {
+        guard menusByHall[hall.id] == nil else { return }
+        isLoading = true
+
+        let dateStr = isoDateString(effectiveMenuDate)
+
+        do {
+            let query = "hall_id=eq.\(hall.id)&menu_date=eq.\(dateStr)&select=*"
+            let rows: [SupabaseMenuItem] = try await fetch([SupabaseMenuItem].self,
+                                                            path: "menu_items",
+                                                            query: query)
+
+            let recipeIds = Set(rows.map(\.recipe_id))
+            let nutritionMap = await fetchNutritionBatch(recipeIds: recipeIds)
+
+            menusByHall[hall.id] = rows.map { $0.toMenuItem(nutrition: nutritionMap[$0.recipe_id]) }
+        } catch {
+            print("[DiningService] Single hall fetch error: \(error)")
+            menusByHall[hall.id] = []
+        }
+
+        isLoading = false
+    }
+
+    // MARK: - Nutrition
+
+    /// Batch-fetch nutrition for a set of recipe IDs from Supabase.
+    private func fetchNutritionBatch(recipeIds: Set<String>) async -> [String: NutritionInfo] {
+        guard !recipeIds.isEmpty else { return [:] }
+
+        // Return cached entries first, only fetch missing
+        var result: [String: NutritionInfo] = [:]
+        var missing: [String] = []
+        for rid in recipeIds {
+            if let cached = nutritionCache[rid] {
+                result[rid] = cached
+            } else {
+                missing.append(rid)
+            }
+        }
+
+        guard !missing.isEmpty else { return result }
+
+        do {
+            // Supabase IN filter: recipe_id=in.(id1,id2,id3)
+            let inList = missing.joined(separator: ",")
+            let query = "recipe_id=in.(\(inList))&select=*"
+            let rows: [SupabaseNutrition] = try await fetch([SupabaseNutrition].self,
+                                                             path: "nutrition_info",
+                                                             query: query)
+            for row in rows {
+                let info = row.toNutritionInfo()
+                nutritionCache[row.recipe_id] = info
+                result[row.recipe_id] = info
+            }
+        } catch {
+            print("[DiningService] Nutrition batch fetch error: \(error)")
+        }
+
+        return result
+    }
+
+    /// On-demand nutrition fetch for a single item (used by detail views).
+    @discardableResult
+    func fetchNutrition(for item: MenuItem) async -> NutritionInfo? {
+        let rid = item.recipeID
+
+        if let cached = nutritionCache[rid] { return cached }
+
+        guard !nutritionFetchInProgress.contains(rid) else {
+            for _ in 0..<10 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if let cached = nutritionCache[rid] { return cached }
+            }
+            return nil
+        }
+
+        nutritionFetchInProgress.insert(rid)
+        defer { nutritionFetchInProgress.remove(rid) }
+
+        do {
+            let query = "recipe_id=eq.\(rid)&select=*&limit=1"
+            let rows: [SupabaseNutrition] = try await fetch([SupabaseNutrition].self,
+                                                             path: "nutrition_info",
+                                                             query: query)
+            guard let row = rows.first else { return nil }
+
+            let nutrition = row.toNutritionInfo()
+            nutritionCache[rid] = nutrition
+
+            // Back-patch MenuItems in menusByHall
+            for hallId in menusByHall.keys {
+                if let idx = menusByHall[hallId]?.firstIndex(where: { $0.recipeID == rid }) {
+                    menusByHall[hallId]![idx].nutrition = nutrition
+                    menusByHall[hallId]![idx].nutritionLoaded = true
+                }
+            }
+
+            return nutrition
+        } catch {
+            print("[DiningService] Nutrition fetch error for \(rid): \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Today / Tomorrow Logic
 
     var effectiveMenuDate: Date {
         let anyOpen = halls.contains { $0.isOpen }
@@ -92,7 +228,7 @@ final class DiningService: ObservableObject {
         !halls.contains { $0.isOpen }
     }
 
-    // MARK: - Item Accessors
+    // MARK: - Item Accessors (unchanged API for views)
 
     func menuItems(for hall: DiningHall, period: MealPeriod) -> [MenuItem] {
         guard let all = menusByHall[hall.id] else { return [] }
@@ -113,8 +249,6 @@ final class DiningService: ObservableObject {
         return seen
     }
 
-    /// Ordered list of unique station names for the given hall and meal period.
-    /// Stations are the raw panel headings from the menu page (e.g. "Bamboo Basil", "Avenue A Homestyle").
     func stations(for hall: DiningHall, period: MealPeriod) -> [String] {
         let items = menuItems(for: hall, period: period)
         var seen: [String] = []
@@ -125,374 +259,95 @@ final class DiningService: ObservableObject {
         return seen
     }
 
-    // MARK: - On-demand Nutrition Fetch
-
-    /// Returns cached nutrition, or fetches from label.aspx if not yet loaded.
-    /// Updates the corresponding MenuItem in menusByHall when complete.
-    @discardableResult
-    func fetchNutrition(for item: MenuItem) async -> NutritionInfo? {
-        let rid = item.recipeID
-
-        // Return from cache immediately
-        if let cached = nutritionCache[rid] { return cached }
-
-        // Deduplicate concurrent requests
-        guard !nutritionFetchInProgress.contains(rid) else {
-            // Poll cache briefly then give up
-            for _ in 0..<10 {
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                if let cached = nutritionCache[rid] { return cached }
-            }
-            return nil
-        }
-
-        nutritionFetchInProgress.insert(rid)
-        defer { nutritionFetchInProgress.remove(rid) }
-
-        guard let url = URL(string: "\(baseURL)/label.aspx?recipeNum=\(rid)") else { return nil }
-
-        do {
-            var req = URLRequest(url: url)
-            req.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await session.data(for: req)
-            guard let html = String(data: data, encoding: .utf8) else { return nil }
-            guard let nutrition = parseNutritionLabel(html) else { return nil }
-
-            nutritionCache[rid] = nutrition
-
-            // Back-patch all MenuItem instances in menusByHall that share this recipeID
-            for hallId in menusByHall.keys {
-                if let idx = menusByHall[hallId]?.firstIndex(where: { $0.recipeID == rid }) {
-                    menusByHall[hallId]![idx].nutrition        = nutrition
-                    menusByHall[hallId]![idx].nutritionLoaded  = true
-                    // Also patch description/ingredients if empty
-                    if let ingredients = html.firstCapture(
-                        pattern: #"modal-description-text">\s*(.*?)\s*<\/p>"#) {
-                        menusByHall[hallId]![idx].description = ingredients
-                    }
-                }
-            }
-            print("[DiningService] Nutrition loaded for recipeID=\(rid) (\(item.name)): \(Int(nutrition.calories)) kcal")
-            return nutrition
-        } catch {
-            print("[DiningService] Nutrition fetch failed for recipeID=\(rid): \(error)")
-            return nil
-        }
-    }
-
-    // MARK: - Network: Menu Page Fetch
-
-    private func fetchMenuForHall(_ hall: DiningHall, date: Date) async -> [MenuItem]? {
-        let dateStr = menuDateString(date)
-        let urlString = "\(baseURL)/?locationID=\(hall.locationID)&date=\(dateStr)"
-        guard let url = URL(string: urlString) else {
-            print("[DiningService] Bad URL for \(hall.name): \(urlString)")
-            return nil
-        }
-
-        print("[DiningService] Fetching \(hall.name) (locationID=\(hall.locationID)) for \(dateStr)")
-
-        do {
-            var req = URLRequest(url: url)
-            req.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await session.data(for: req)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-                  let html = String(data: data, encoding: .utf8)
-            else {
-                print("[DiningService] HTTP error for \(hall.name)")
-                return nil
-            }
-            let items = parseMenuPage(html, hall: hall)
-            print("[DiningService] Parsed \(items.count) items for \(hall.name)")
-            return items.isEmpty ? nil : items
-        } catch {
-            print("[DiningService] Network error for \(hall.name): \(error)")
-            return nil
-        }
-    }
-
-    // MARK: - HTML Parsing: Menu Page
-
-    /// Parse diningmenus.unt.edu HTML into [MenuItem].
-    ///
-    /// Page structure:
-    ///   Nav tabs: <a href="#breakfast" data-toggle="tab">LUNCH</a>
-    ///   Tab panes: <div class="tab-pane … " id="breakfast"> … </div>
-    ///   Panels inside pane: <div class="panel panel-default panel-menu">
-    ///     <div class="panel-heading"><p class="h5">Station Name</p></div>
-    ///     <ul class="list-group">
-    ///       <li id="420069" class="list-group-item borderless food-item Vegan Vegetarian">
-    ///         Baked Yellow Squash
-    ///       </li>
-    ///     </ul>
-    ///   </div>
-    ///
-    /// Fallback: When no tab navigation is found (e.g. Eagle Landing's HTML variant),
-    /// the entire page body is parsed as a single pane covering both Lunch and Dinner.
-
-    private func parseMenuPage(_ html: String, hall: DiningHall) -> [MenuItem] {
-        var items: [MenuItem] = []
-
-        // 1. Build divId → MealPeriod from tab navigation.
-        //    Allow any alphanumeric+hyphen IDs and case-insensitive labels.
-        var divToMealPeriod: [String: MealPeriod] = [:]
-        let tabPattern = "href=\"#([A-Za-z0-9_-]+)\"[^>]*data-toggle=\"tab\"[^>]*>\\s*([^<]+?)\\s*<"
-        for m in html.allCaptures(pattern: tabPattern, groupCount: 2) {
-            let divId = m[0]
-            let label = m[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            if let period = mealPeriodFrom(label) {
-                divToMealPeriod[divId] = period
-                print("[DiningService] Tab map: #\(divId) → \(period.rawValue) (\(hall.name))")
-            }
-        }
-
-        // 2. Split HTML at each tab-pane div.
-        let paneSplit = #"<div[^>]+class="tab-pane[^"]*"[^>]+id="([^"]+)""#
-        let paneMatches = html.allCaptures(pattern: paneSplit, groupCount: 1)
-
-        var paneStarts: [(divId: String, range: String.Index)] = []
-        var searchStart = html.startIndex
-        for matchGroup in paneMatches {
-            let divId = matchGroup[0]
-            if let r = html.range(of: "id=\"\(divId)\"", range: searchStart..<html.endIndex) {
-                paneStarts.append((divId: divId, range: r.lowerBound))
-                searchStart = r.upperBound
-            }
-        }
-
-        // 3. If no tabs resolved to a meal period, fall back to treating the whole HTML as
-        //    a single pane covering both Lunch and Dinner (handles Eagle Landing and other
-        //    hall variants whose tab markup differs from the expected pattern).
-        let useFallback = paneStarts.allSatisfy { divToMealPeriod[$0.divId] == nil }
-
-        if useFallback {
-            print("[DiningService] No tab panes matched — using full-page fallback for \(hall.name)")
-            items = parsePanelItems(html, period: .lunch, existingItems: &items, hallId: hall.id)
-            // Also tag the same items as dinner so they appear in both periods
-            for i in items.indices {
-                if !items[i].mealPeriods.contains(.dinner) {
-                    var periods = items[i].mealPeriods
-                    periods.append(.dinner)
-                    items[i] = rebuildItem(items[i], mealPeriods: periods)
-                }
-            }
-            return items
-        }
-
-        // 4. Normal path: iterate each tab pane
-        for (i, pane) in paneStarts.enumerated() {
-            guard let period = divToMealPeriod[pane.divId] else { continue }
-            let paneEnd  = (i + 1 < paneStarts.count) ? paneStarts[i + 1].range : html.endIndex
-            let paneHTML = String(html[pane.range..<paneEnd])
-            items = parsePanelItems(paneHTML, period: period, existingItems: &items, hallId: hall.id)
-        }
-
-        return items
-    }
-
-    // MARK: - Parse panels within an HTML fragment
-
-    /// Scans `html` for `<div class="panel panel-default panel-menu">` blocks, extracts
-    /// items from each, and merges them into `existingItems` (deduplicating by item id).
-    private func parsePanelItems(
-        _ html: String,
-        period: MealPeriod,
-        existingItems: inout [MenuItem],
-        hallId: String
-    ) -> [MenuItem] {
-        var items = existingItems
-        let panelMarker = #"<div class="panel panel-default panel-menu""#
-        var panelStart  = html.startIndex
-
-        while let ps = html.range(of: panelMarker, range: panelStart..<html.endIndex) {
-            let nextPanelRange = html.range(of: panelMarker, range: ps.upperBound..<html.endIndex)
-            let panelEnd       = nextPanelRange?.lowerBound ?? html.endIndex
-            let panelHTML      = String(html[ps.lowerBound..<panelEnd])
-
-            // Extract station name from the panel heading
-            let rawHeading = panelHTML.firstCapture(pattern: #"<p[^>]+>\s*(.*?)\s*</p>"#) ?? ""
-            let stationName = rawHeading
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let category = mapCategoryName(stationName)
-
-            // Extract food items: <li id="420069" class="list-group-item borderless food-item TAGS">Name</li>
-            let itemPattern = #"<li\s+id="(\d+)"\s+class="list-group-item\s+borderless\s+food-item([^"]*)"\s*>([^<]+)</li>"#
-            for itemMatch in panelHTML.allCaptures(pattern: itemPattern, groupCount: 3) {
-                let recipeID = itemMatch[0]
-                let tagsStr  = itemMatch[1]
-                let name     = itemMatch[2].trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !name.isEmpty else { continue }
-
-                let tags   = parseDietaryTags(tagsStr)
-                let itemId = "\(hallId)-\(recipeID)"
-
-                // Merge with existing item (different meal period for same recipe)
-                if let existingIdx = items.firstIndex(where: { $0.id == itemId }) {
-                    if !items[existingIdx].mealPeriods.contains(period) {
-                        var periods = items[existingIdx].mealPeriods
-                        periods.append(period)
-                        items[existingIdx] = rebuildItem(items[existingIdx], mealPeriods: periods)
-                    }
-                    continue
-                }
-
-                items.append(MenuItem(
-                    id:              itemId,
-                    recipeID:        recipeID,
-                    name:            name,
-                    description:     "",
-                    category:        category,
-                    station:         stationName,
-                    nutrition:       .empty,
-                    nutritionLoaded: false,
-                    dietaryTags:     tags,
-                    mealPeriods:     [period],
-                    diningHallId:    hallId
-                ))
-            }
-
-            // Advance past this panel
-            panelStart = nextPanelRange?.lowerBound ?? html.endIndex
-            if panelStart == html.endIndex { break }
-        }
-
-        existingItems = items
-        return items
-    }
-
-    private func rebuildItem(_ item: MenuItem, mealPeriods: [MealPeriod]) -> MenuItem {
-        MenuItem(
-            id:              item.id,
-            recipeID:        item.recipeID,
-            name:            item.name,
-            description:     item.description,
-            category:        item.category,
-            station:         item.station,
-            nutrition:       item.nutrition,
-            nutritionLoaded: item.nutritionLoaded,
-            dietaryTags:     item.dietaryTags,
-            mealPeriods:     mealPeriods,
-            diningHallId:    item.diningHallId
-        )
-    }
-
-    // MARK: - HTML Parsing: Nutrition Label
-
-    /// Parse label.aspx?recipeNum={id} HTML into NutritionInfo.
-    private func parseNutritionLabel(_ html: String) -> NutritionInfo? {
-        func numAfter(_ label: String) -> Double? {
-            // Matches: "Label Name <div class="weight">70</div>" or "…4.7g…"
-            let escaped = NSRegularExpression.escapedPattern(for: label)
-            let pattern = escaped + #"[^<]*<div class="weight">([0-9.]+)"#
-            return html.firstCapture(pattern: pattern).flatMap { Double($0) }
-        }
-
-        func numStr(_ label: String) -> Double? {
-            numAfter(label)
-        }
-
-        let calories = numStr("Calories")
-        let fat      = numStr("Total Fat")
-        let carbs    = numStr("Total Carbohydrates")
-        let protein  = numStr("Protein")
-        let fiber    = numStr("Dietary Fiber")
-        let sugar    = numStr("Sugars")
-        let sodium   = numStr("Sodium")
-
-        let serving  = html.firstCapture(pattern: #"<span class="highlighted">([^<]+)</span>\s*Serving Size"#)
-
-        guard let cal = calories, let fat = fat, let carbs = carbs, let prot = protein else {
-            print("[DiningService] parseNutritionLabel: missing key macros")
-            return nil
-        }
-
-        return NutritionInfo(
-            calories:      cal,
-            protein:       prot,
-            carbohydrates: carbs,
-            fat:           fat,
-            fiber:         fiber,
-            sugar:         sugar,
-            sodium:        sodium,
-            servingSize:   serving
-        )
-    }
-
     // MARK: - Helpers
 
-    private func mealPeriodFrom(_ label: String) -> MealPeriod? {
-        let upper = label.uppercased()
-        if upper.contains("BREAKFAST") || upper.contains("BKFST") { return .breakfast }
-        if upper.contains("LUNCH")                                  { return .lunch }
-        if upper.contains("DINNER")                                 { return .dinner }
-        if upper.contains("LATE")  || upper.contains("NIGHT")      { return .lateNight }
-        return nil
-    }
-
-    private func parseDietaryTags(_ classStr: String) -> [DietaryTag] {
-        var tags: [DietaryTag] = []
-        let classes = classStr.trimmingCharacters(in: .whitespaces)
-        if classes.contains("Vegan")      { tags.append(.vegan) }
-        if classes.contains("Vegetarian") { tags.append(.vegetarian) }
-        if classes.contains("Halal")      { tags.append(.halal) }
-        return tags
-    }
-
-    private func mapCategoryName(_ raw: String) -> MenuCategory {
-        let lower = raw.lowercased()
-        if lower.contains("grill")                             { return .grill }
-        if lower.contains("soup")                              { return .soup }
-        if lower.contains("pizza") || lower.contains("pasta") { return .pizza }
-        if lower.contains("asian") || lower.contains("basil") || lower.contains("bamboo") || lower.contains("wok") { return .asian }
-        if lower.contains("deli")  || lower.contains("sandwich") { return .deli }
-        if lower.contains("bakery") || lower.contains("bread") || lower.contains("bakeshop") { return .bakery }
-        if lower.contains("dessert") || lower.contains("cobbler") || lower.contains("ice cream") { return .desserts }
-        if lower.contains("beverage") || lower.contains("drink") { return .beverages }
-        if lower.contains("breakfast")                         { return .breakfast }
-        if lower.contains("vegan") || lower.contains("leaf")   { return .vegan }
-        if lower.contains("salad") || lower.contains("fresh")  { return .salad }
-        if lower.contains("performance") || lower.contains("protein") { return .performance }
-        if lower.contains("side")                              { return .sides }
-        return .entrees
-    }
-
-    /// Returns date formatted as MM/dd/yyyy for the diningmenus.unt.edu query parameter.
-    private func menuDateString(_ date: Date) -> String {
+    private func isoDateString(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "MM/dd/yyyy"
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "America/Chicago")
         return f.string(from: date)
     }
-
-    private let browserUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 }
 
-// MARK: - String Regex Helpers
+// MARK: - Errors
 
-private extension String {
-    /// Returns the first capture group of the first match, or nil.
-    func firstCapture(pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]),
-              let match = regex.firstMatch(in: self, range: NSRange(self.startIndex..., in: self)),
-              match.numberOfRanges > 1,
-              let range = Range(match.range(at: 1), in: self)
-        else { return nil }
-        return String(self[range])
+enum DiningError: LocalizedError {
+    case httpError(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .httpError(let code):
+            return "Server error (HTTP \(code)). Please try again."
+        }
+    }
+}
+
+// MARK: - Supabase Response Models
+
+private struct SupabaseMenuItem: Decodable {
+    let id: String
+    let hall_id: String
+    let recipe_id: String
+    let name: String
+    let description: String?
+    let category: String?
+    let station: String?
+    let meal_periods: [String]?
+    let dietary_tags: String?      // JSONB comes as string
+    let menu_date: String
+
+    func toMenuItem(nutrition: NutritionInfo?) -> MenuItem {
+        let periods = (meal_periods ?? []).compactMap { MealPeriod(rawValue: $0) }
+        let tags = parseDietaryTags()
+        let cat = MenuCategory(rawValue: category ?? "Entrées") ?? .entrees
+        let hasNutrition = nutrition?.isComplete == true
+
+        return MenuItem(
+            id: id,
+            recipeID: recipe_id,
+            name: name,
+            description: description ?? "",
+            category: cat,
+            station: station ?? "",
+            nutrition: nutrition ?? .empty,
+            nutritionLoaded: hasNutrition,
+            dietaryTags: tags,
+            mealPeriods: periods.isEmpty ? [.lunch] : periods,
+            diningHallId: hall_id
+        )
     }
 
-    /// Returns all matches, each as an array of capture-group strings.
-    func allCaptures(pattern: String, groupCount: Int) -> [[String]] {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
-        else { return [] }
-        let range   = NSRange(self.startIndex..., in: self)
-        let matches = regex.matches(in: self, range: range)
-        return matches.compactMap { m -> [String]? in
-            var groups: [String] = []
-            for i in 1...groupCount {
-                guard let r = Range(m.range(at: i), in: self) else { return nil }
-                groups.append(String(self[r]))
-            }
-            return groups
+    private func parseDietaryTags() -> [DietaryTag] {
+        guard let jsonStr = dietary_tags,
+              let data = jsonStr.data(using: .utf8),
+              let tags = try? JSONDecoder().decode([DietaryTag].self, from: data) else {
+            return []
         }
+        return tags
+    }
+}
+
+private struct SupabaseNutrition: Decodable {
+    let recipe_id: String
+    let calories: Double?
+    let protein: Double?
+    let carbohydrates: Double?
+    let fat: Double?
+    let fiber: Double?
+    let sugar: Double?
+    let sodium: Double?
+    let serving_size: String?
+
+    func toNutritionInfo() -> NutritionInfo {
+        NutritionInfo(
+            calories: calories ?? 0,
+            protein: protein ?? 0,
+            carbohydrates: carbohydrates ?? 0,
+            fat: fat ?? 0,
+            fiber: fiber,
+            sugar: sugar,
+            sodium: sodium,
+            servingSize: serving_size
+        )
     }
 }
