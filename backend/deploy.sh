@@ -15,7 +15,7 @@ cd lambda_scraper
 rm -rf package lambda_package.zip
 
 # Install dependencies into package/
-pip install -r requirements.txt -t package/ --quiet
+pip3 install -r requirements.txt -t package/ --quiet
 
 # Copy scraper into package
 cp scraper.py package/

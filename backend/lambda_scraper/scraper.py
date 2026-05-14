@@ -3,7 +3,9 @@ Eagle Eats — AWS Lambda Menu Scraper
 Runs daily at 5 AM CST via CloudWatch cron: 0 11 * * ? *
 
 Scrapes all 5 UNT dining halls from diningmenus.unt.edu,
-parses menu items + nutrition labels, writes to Supabase.
+parses menu items + nutrition labels, writes to Supabase via REST API.
+
+Uses only `requests` + `beautifulsoup4` — no heavy SDKs, no binary deps.
 """
 
 import os
@@ -15,8 +17,6 @@ from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from bs4 import BeautifulSoup
-from supabase import create_client, Client
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -49,13 +49,46 @@ DIETARY_TAGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Supabase client
+# Supabase REST API (no SDK needed)
 # ---------------------------------------------------------------------------
 
-def get_supabase() -> Client:
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_SERVICE_KEY"]
-    return create_client(url, key)
+class SupabaseREST:
+    """Lightweight Supabase client using raw HTTP requests."""
+
+    def __init__(self):
+        self.url = os.environ["SUPABASE_URL"].rstrip("/")
+        self.key = os.environ["SUPABASE_SERVICE_KEY"]
+        self.headers = {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates",
+        }
+
+    def upsert(self, table: str, rows: list[dict]):
+        """Upsert rows into a table (POST with merge-duplicates)."""
+        endpoint = f"{self.url}/rest/v1/{table}"
+        resp = requests.post(endpoint, headers=self.headers,
+                             json=rows, timeout=30)
+        if resp.status_code not in (200, 201):
+            logger.error(f"Supabase upsert {table} failed: {resp.status_code} {resp.text[:200]}")
+        return resp
+
+    def select(self, table: str, query: str) -> list[dict]:
+        """Select rows from a table with query parameters."""
+        endpoint = f"{self.url}/rest/v1/{table}?{query}"
+        headers = {**self.headers, "Prefer": ""}
+        resp = requests.get(endpoint, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            return resp.json()
+        logger.error(f"Supabase select {table} failed: {resp.status_code}")
+        return []
+
+    def rpc(self, function_name: str):
+        """Call a Postgres function via Supabase RPC."""
+        endpoint = f"{self.url}/rest/v1/rpc/{function_name}"
+        resp = requests.post(endpoint, headers=self.headers, json={}, timeout=15)
+        return resp
 
 # ---------------------------------------------------------------------------
 # HTML Parsing — Menu Page
@@ -141,7 +174,6 @@ def scrape_menu_page(hall: dict, date_str: str) -> list[dict]:
     pane_matches = list(pane_pattern.finditer(html))
 
     if not pane_matches or all(m.group(1) not in tab_map for m in pane_matches):
-        # Fallback: treat entire page as lunch+dinner
         logger.info(f"  No tab panes — full-page fallback for {hall['id']}")
         page_items = parse_panel_items(html, hall["id"], "Lunch")
         for item in page_items:
@@ -162,7 +194,6 @@ def scrape_menu_page(hall: dict, date_str: str) -> list[dict]:
         pane_items = parse_panel_items(pane_html, hall["id"], period)
         for item in pane_items:
             if item["id"] in seen_ids:
-                # Merge meal period into existing item
                 for existing in items:
                     if existing["id"] == item["id"] and period not in existing["meal_periods"]:
                         existing["meal_periods"].append(period)
@@ -181,10 +212,9 @@ def parse_panel_items(html: str, hall_id: str, period: str) -> list[dict]:
         r'<li\s+id="(\d+)"\s+class="list-group-item\s+borderless\s+food-item([^"]*)"\s*>'
         r'([^<]+)</li>'
     )
-    # Extract station names from panel headings
     panel_splits = html.split('class="panel panel-default panel-menu"')
 
-    for panel_chunk in panel_splits[1:]:  # skip before first panel
+    for panel_chunk in panel_splits[1:]:
         heading_match = re.search(r'<p[^>]+>\s*(.*?)\s*</p>', panel_chunk, re.DOTALL)
         raw_heading = heading_match.group(1) if heading_match else ""
         station_name = re.sub(r'<[^>]+>', '', raw_heading).strip()
@@ -261,7 +291,7 @@ def scrape_nutrition(recipe_id: str) -> dict | None:
 # Supabase Writers
 # ---------------------------------------------------------------------------
 
-def write_menu_items(sb: Client, items: list[dict], menu_date: str):
+def write_menu_items(sb: SupabaseREST, items: list[dict], menu_date: str):
     """Upsert menu items for today into Supabase."""
     if not items:
         return
@@ -281,27 +311,26 @@ def write_menu_items(sb: Client, items: list[dict], menu_date: str):
             "menu_date": menu_date,
         })
 
-    # Upsert in batches of 100
     for i in range(0, len(rows), 100):
         batch = rows[i:i + 100]
-        sb.table("menu_items").upsert(batch, on_conflict="id").execute()
+        sb.upsert("menu_items", batch)
         logger.info(f"  Upserted {len(batch)} menu items (batch {i // 100 + 1})")
 
 
-def write_nutrition(sb: Client, nutrition_data: list[dict]):
+def write_nutrition(sb: SupabaseREST, nutrition_data: list[dict]):
     """Upsert nutrition info into Supabase."""
     if not nutrition_data:
         return
 
     for i in range(0, len(nutrition_data), 50):
         batch = nutrition_data[i:i + 50]
-        sb.table("nutrition_info").upsert(batch, on_conflict="recipe_id").execute()
+        sb.upsert("nutrition_info", batch)
         logger.info(f"  Upserted {len(batch)} nutrition records (batch {i // 50 + 1})")
 
 
-def log_scrape(sb: Client, date_str: str, halls_count: int, items_count: int,
+def log_scrape(sb: SupabaseREST, date_str: str, halls_count: int, items_count: int,
                nutrition_count: int, duration_ms: int, status: str, error: str = None):
-    sb.table("scrape_log").insert({
+    sb.upsert("scrape_log", [{
         "scrape_date": date_str,
         "halls_scraped": halls_count,
         "items_scraped": items_count,
@@ -309,7 +338,7 @@ def log_scrape(sb: Client, date_str: str, halls_count: int, items_count: int,
         "duration_ms": duration_ms,
         "status": status,
         "error_message": error,
-    }).execute()
+    }])
 
 # ---------------------------------------------------------------------------
 # Lambda Handler
@@ -323,15 +352,14 @@ def lambda_handler(event, context):
     start_time = time.time()
     logger.info("=== Eagle Eats Scraper Starting ===")
 
-    # Use CST date for the menu
     cst = timezone(timedelta(hours=-6))
     today = datetime.now(cst)
-    date_str_for_unt = today.strftime("%m/%d/%Y")       # MM/dd/yyyy for UNT URL
-    date_str_iso = today.strftime("%Y-%m-%d")            # ISO for Supabase
+    date_str_for_unt = today.strftime("%m/%d/%Y")
+    date_str_iso = today.strftime("%Y-%m-%d")
 
     logger.info(f"Scraping menus for: {date_str_for_unt} (ISO: {date_str_iso})")
 
-    sb = get_supabase()
+    sb = SupabaseREST()
     all_items = []
     halls_scraped = 0
 
@@ -352,12 +380,14 @@ def lambda_handler(event, context):
     # 3. Collect unique recipe IDs that need nutrition data
     unique_recipe_ids = list({item["recipe_id"] for item in all_items})
 
-    # Check which ones we already have cached
-    existing = sb.table("nutrition_info") \
-        .select("recipe_id") \
-        .in_("recipe_id", unique_recipe_ids) \
-        .execute()
-    existing_ids = {row["recipe_id"] for row in (existing.data or [])}
+    # Check which ones we already have cached in Supabase
+    existing_ids = set()
+    for i in range(0, len(unique_recipe_ids), 100):
+        batch = unique_recipe_ids[i:i + 100]
+        in_list = ",".join(batch)
+        rows = sb.select("nutrition_info", f"recipe_id=in.({in_list})&select=recipe_id")
+        existing_ids.update(row["recipe_id"] for row in rows)
+
     missing_ids = [rid for rid in unique_recipe_ids if rid not in existing_ids]
 
     logger.info(
@@ -388,7 +418,7 @@ def lambda_handler(event, context):
 
     # 6. Cleanup old menu data
     try:
-        sb.rpc("cleanup_old_menus").execute()
+        sb.rpc("cleanup_old_menus")
         logger.info("Old menu data cleaned up")
     except Exception as e:
         logger.warning(f"Cleanup function error: {e}")
@@ -416,7 +446,7 @@ def lambda_handler(event, context):
 
 # For local testing
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
+    os.environ.setdefault("SUPABASE_URL", "")
+    os.environ.setdefault("SUPABASE_SERVICE_KEY", "")
     result = lambda_handler({}, None)
     print(json.dumps(result, indent=2))
