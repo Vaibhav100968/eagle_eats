@@ -7,6 +7,7 @@ struct MenuItemRow: View {
     let hall:              DiningHall
     let plateVM:           PlateViewModel
     let onNutritionTap:    () -> Void
+    var userAllergenExclusions: Set<String> = []
 
     @EnvironmentObject private var diningService: DiningService
 
@@ -78,6 +79,14 @@ struct MenuItemRow: View {
                                     .clipShape(Capsule())
                             }
                         }
+                    }
+
+                    // Allergen warning badges
+                    if current.nutritionLoaded && current.nutrition.hasAllergens {
+                        AllergenBadgeRow(
+                            allergens: current.nutrition.allergens,
+                            userExclusions: userAllergenExclusions
+                        )
                     }
 
                     // Calories
@@ -407,5 +416,42 @@ private struct ExpandedMacroItem: View {
         .padding(.vertical, 8)
         .background(color.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+// MARK: - Allergen Badge Row
+
+struct AllergenBadgeRow: View {
+    let allergens: [Allergen]
+    var userExclusions: Set<String> = []
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(allergens.prefix(5)) { allergen in
+                let isDanger = userExclusions.contains(allergen.rawValue)
+                HStack(spacing: 3) {
+                    if isDanger {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    Text(allergen.rawValue)
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .foregroundStyle(isDanger ? .white : Color(hex: allergen.color))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(isDanger ? Color.statusClosed : Color(hex: allergen.color).opacity(0.12))
+                .clipShape(Capsule())
+            }
+            if allergens.count > 5 {
+                Text("+\(allergens.count - 5)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.textTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.surfaceRaised)
+                    .clipShape(Capsule())
+            }
+        }
     }
 }

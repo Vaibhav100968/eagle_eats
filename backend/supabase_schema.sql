@@ -67,8 +67,14 @@ CREATE TABLE IF NOT EXISTS nutrition_info (
     sugar         DOUBLE PRECISION,
     sodium        DOUBLE PRECISION,
     serving_size  TEXT,
+    allergens     TEXT[] DEFAULT '{}',             -- e.g. {"Milk","Eggs","Wheat"}
+    ingredients   TEXT DEFAULT '',                 -- full ingredient list from label
     fetched_at    TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migration for existing tables (safe to re-run):
+-- ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS allergens TEXT[] DEFAULT '{}';
+-- ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS ingredients TEXT DEFAULT '';
 
 -- 4. App Users (linked to UNT identity from portal SSO)
 CREATE TABLE IF NOT EXISTS app_users (

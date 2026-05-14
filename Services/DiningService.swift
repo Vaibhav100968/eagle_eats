@@ -337,9 +337,12 @@ private struct SupabaseNutrition: Decodable {
     let sugar: Double?
     let sodium: Double?
     let serving_size: String?
+    let allergens: [String]?
+    let ingredients: String?
 
     func toNutritionInfo() -> NutritionInfo {
-        NutritionInfo(
+        let parsedAllergens = (allergens ?? []).compactMap { Allergen.from(string: $0) }
+        return NutritionInfo(
             calories: calories ?? 0,
             protein: protein ?? 0,
             carbohydrates: carbohydrates ?? 0,
@@ -347,7 +350,9 @@ private struct SupabaseNutrition: Decodable {
             fiber: fiber,
             sugar: sugar,
             sodium: sodium,
-            servingSize: serving_size
+            servingSize: serving_size,
+            allergens: parsedAllergens,
+            ingredients: ingredients ?? ""
         )
     }
 }

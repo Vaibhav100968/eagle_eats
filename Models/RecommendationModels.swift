@@ -117,12 +117,13 @@ struct RecommendationExplanation {
 /// Active menu filters applied in DiningHallDetailView.
 struct MenuFilter: Equatable {
     var dietaryTags: Set<String> = []       // "vegan", "vegetarian", etc.
+    var allergenExclusions: Set<String> = [] // Allergen rawValues to hide
     var maxCalories: Double? = nil           // upper calorie bound per item
     var minProtein: Double? = nil            // minimum protein per item
     var searchText: String = ""
 
     var isActive: Bool {
-        !dietaryTags.isEmpty || maxCalories != nil || minProtein != nil
+        !dietaryTags.isEmpty || !allergenExclusions.isEmpty || maxCalories != nil || minProtein != nil
     }
 
     func matches(_ item: MenuItem) -> Bool {
@@ -130,6 +131,12 @@ struct MenuFilter: Equatable {
         if !dietaryTags.isEmpty {
             let itemTags = Set(item.dietaryTags.map(\.id))
             if dietaryTags.isDisjoint(with: itemTags) { return false }
+        }
+
+        // Allergen exclusion: hide items containing any of the user's flagged allergens
+        if !allergenExclusions.isEmpty && item.nutritionLoaded {
+            let itemAllergens = Set(item.nutrition.allergens.map(\.rawValue))
+            if !allergenExclusions.isDisjoint(with: itemAllergens) { return false }
         }
 
         // Calorie ceiling

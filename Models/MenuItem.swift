@@ -11,11 +11,75 @@ struct NutritionInfo: Codable, Hashable {
     var sugar:          Double?
     var sodium:         Double?
     var servingSize:    String?
+    var allergens:      [Allergen] = []
+    var ingredients:    String = ""
 
     static let empty = NutritionInfo(calories: 0, protein: 0, carbohydrates: 0, fat: 0)
 
     var isComplete: Bool {
         calories > 0 || protein > 0 || carbohydrates > 0 || fat > 0
+    }
+
+    var hasAllergens: Bool { !allergens.isEmpty }
+}
+
+// MARK: - Allergen
+
+enum Allergen: String, CaseIterable, Codable, Identifiable {
+    case milk       = "Milk"
+    case eggs       = "Eggs"
+    case fish       = "Fish"
+    case shellfish  = "Shellfish"
+    case treeNuts   = "Tree Nuts"
+    case peanuts    = "Peanuts"
+    case wheat      = "Wheat"
+    case soybeans   = "Soybeans"
+    case sesame     = "Sesame"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .milk:      return "cup.and.saucer.fill"
+        case .eggs:      return "oval.fill"
+        case .fish:      return "fish.fill"
+        case .shellfish: return "tortoise.fill"
+        case .treeNuts:  return "chart.dots.scatter"
+        case .peanuts:   return "leaf.circle.fill"
+        case .wheat:     return "w.circle.fill"
+        case .soybeans:  return "drop.circle.fill"
+        case .sesame:    return "circle.grid.3x3.fill"
+        }
+    }
+
+    var color: String {
+        switch self {
+        case .milk:      return "3B82F6"
+        case .eggs:      return "F59E0B"
+        case .fish:      return "06B6D4"
+        case .shellfish: return "EF4444"
+        case .treeNuts:  return "8B5CF6"
+        case .peanuts:   return "D97706"
+        case .wheat:     return "D4A574"
+        case .soybeans:  return "10B981"
+        case .sesame:    return "6B7280"
+        }
+    }
+
+    static func from(string: String) -> Allergen? {
+        let lower = string.lowercased().trimmingCharacters(in: .whitespaces)
+        switch lower {
+        case "milk", "dairy":                         return .milk
+        case "eggs", "egg":                           return .eggs
+        case "fish":                                  return .fish
+        case "shellfish", "crustacean shellfish":      return .shellfish
+        case "tree nuts", "tree_nuts", "tree nut":     return .treeNuts
+        case "peanuts", "peanut":                     return .peanuts
+        case "wheat", "gluten":                       return .wheat
+        case "soybeans", "soybean", "soy":            return .soybeans
+        case "sesame":                                return .sesame
+        default:                                      return nil
+        }
     }
 }
 

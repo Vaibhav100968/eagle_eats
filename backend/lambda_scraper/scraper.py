@@ -275,6 +275,26 @@ def scrape_nutrition(recipe_id: str) -> dict | None:
         r'<span class="highlighted">([^<]+)</span>\s*Serving Size', html
     )
 
+    # Parse allergens
+    allergen_match = re.search(
+        r'<b>Allergens\s*:?\s*</b>\s*</h6>\s*<p[^>]*>([^<]+)</p>',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    allergens = []
+    if allergen_match:
+        raw = allergen_match.group(1).strip()
+        if raw and raw.lower() not in ("none", "n/a", ""):
+            allergens = [a.strip() for a in raw.split(",") if a.strip()]
+
+    # Parse ingredients
+    ingredients_match = re.search(
+        r'<b>Ingredients\s*:?\s*</b>\s*</h6>\s*<p[^>]*>([^<]+)</p>',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    ingredients_text = ""
+    if ingredients_match:
+        ingredients_text = ingredients_match.group(1).strip()
+
     return {
         "recipe_id": recipe_id,
         "calories": calories or 0,
@@ -285,6 +305,8 @@ def scrape_nutrition(recipe_id: str) -> dict | None:
         "sugar": extract_value("Sugars"),
         "sodium": extract_value("Sodium"),
         "serving_size": serving_match.group(1).strip() if serving_match else None,
+        "allergens": "{" + ",".join(allergens) + "}",  # Postgres array literal
+        "ingredients": ingredients_text,
     }
 
 # ---------------------------------------------------------------------------

@@ -49,6 +49,7 @@ struct DiningHallDetailView: View {
     private var activeFilterCount: Int {
         var count = 0
         if !menuFilter.dietaryTags.isEmpty { count += menuFilter.dietaryTags.count }
+        if !menuFilter.allergenExclusions.isEmpty { count += menuFilter.allergenExclusions.count }
         if menuFilter.maxCalories != nil { count += 1 }
         if menuFilter.minProtein != nil { count += 1 }
         return count
@@ -178,6 +179,10 @@ struct DiningHallDetailView: View {
             // Pre-populate filters from user dietary preferences
             if !appState.settings.dietaryFilters.isEmpty && menuFilter.dietaryTags.isEmpty {
                 menuFilter.dietaryTags = Set(appState.settings.dietaryFilters)
+            }
+            // Pre-populate allergen exclusions from user profile
+            if !appState.settings.allergenExclusions.isEmpty && menuFilter.allergenExclusions.isEmpty {
+                menuFilter.allergenExclusions = Set(appState.settings.allergenExclusions)
             }
             Task { await diningService.fetchMenuForHallIfNeeded(hall) }
         }
@@ -453,7 +458,8 @@ struct DiningHallDetailView: View {
                             item: item,
                             hall: hall,
                             plateVM: plateVM,
-                            onNutritionTap: { showingNutrition = item }
+                            onNutritionTap: { showingNutrition = item },
+                            userAllergenExclusions: menuFilter.allergenExclusions
                         )
                         .padding(.horizontal, 20)
                         .padding(.bottom, 12)
@@ -645,6 +651,39 @@ struct DiningHallDetailView: View {
                 }
             }
 
+            // Allergen exclusions
+            VStack(alignment: .leading, spacing: 6) {
+                Text("EXCLUDE ALLERGENS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.textTertiary)
+                    .letterSpacing(0.5)
+
+                FlowLayout(spacing: 6) {
+                    ForEach(Allergen.allCases) { allergen in
+                        let isOn = menuFilter.allergenExclusions.contains(allergen.rawValue)
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if isOn { menuFilter.allergenExclusions.remove(allergen.rawValue) }
+                                else    { menuFilter.allergenExclusions.insert(allergen.rawValue) }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: allergen.icon)
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(allergen.rawValue)
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(isOn ? Color.statusClosed : Color.surfaceRaised)
+                            .foregroundStyle(isOn ? .white : Color.textSecondary)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(SpringButtonStyle())
+                    }
+                }
+            }
+
             // Calorie & protein sliders
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -758,6 +797,13 @@ struct DiningHallDetailView: View {
                         }
                     }
                 }
+                ForEach(Array(menuFilter.allergenExclusions), id: \.self) { allergenId in
+                    filterChip(label: "No \(allergenId)", color: .statusClosed) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            _ = menuFilter.allergenExclusions.remove(allergenId)
+                        }
+                    }
+                }
                 if let max = menuFilter.maxCalories {
                     filterChip(label: "≤\(Int(max)) cal", color: .macroCalories) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { menuFilter.maxCalories = nil }
@@ -865,6 +911,56 @@ struct NutritionDetailSheet: View {
                         }
                     }
                     .padding(.horizontal, 20)
+
+                    // Allergen warnings
+                    if item.nutrition.hasAllergens {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.statusClosed)
+                                Text("Contains Allergens")
+                                    .font(.headingSmall)
+                                    .foregroundStyle(Color.statusClosed)
+                            }
+                            .padding(.horizontal, 24)
+
+                            FlowLayout(spacing: 8) {
+                                ForEach(item.nutrition.allergens) { allergen in
+                                    HStack(spacing: 5) {
+                                        Image(systemName: allergen.icon)
+                                            .font(.system(size: 12))
+                                        Text(allergen.rawValue)
+                                            .font(.system(size: 13, weight: .semibold))
+                                    }
+                                    .foregroundStyle(Color(hex: allergen.color))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Color(hex: allergen.color).opacity(0.12))
+                                    .clipShape(Capsule())
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(Color(hex: allergen.color).opacity(0.3), lineWidth: 1)
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+
+                    // Ingredients
+                    if !item.nutrition.ingredients.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Ingredients")
+                                .font(.headingSmall)
+                                .foregroundStyle(Color.textPrimary)
+                                .padding(.horizontal, 24)
+                            Text(item.nutrition.ingredients)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.textSecondary)
+                                .padding(.horizontal, 24)
+                        }
+                    }
 
                     // Dietary tags
                     if !item.dietaryTags.isEmpty {

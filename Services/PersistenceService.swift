@@ -173,6 +173,7 @@ struct AppSettings: Codable, Equatable {
     var dailyCarbGoal:      Double = 250
     var dailyFatGoal:       Double = 65
     var dietaryFilters:     [String] = []
+    var allergenExclusions: [String] = []   // Allergen rawValues the user wants to avoid
     var notificationsEnabled: Bool  = true
     var reducedMotion:      Bool    = false
     var defaultHallId:      String? = nil

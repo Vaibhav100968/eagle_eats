@@ -51,6 +51,13 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .staggerIn(visible: appeared, delay: 0.18)
 
+                        // MARK: Allergen Profile
+                        SettingsSection(title: "My Allergens", icon: "exclamationmark.triangle.fill") {
+                            AllergenProfileRow(exclusions: $settings.allergenExclusions)
+                        }
+                        .padding(.horizontal, 20)
+                        .staggerIn(visible: appeared, delay: 0.20)
+
                         // MARK: App Preferences
                         SettingsSection(title: "App Preferences", icon: "gearshape.fill") {
                             SettingsToggleRow(
@@ -402,6 +409,59 @@ private struct DietaryFilterRow: View {
             }
             .padding(.bottom, 6)
         }
+    }
+}
+
+// MARK: - Allergen Profile Row
+
+private struct AllergenProfileRow: View {
+    @Binding var exclusions: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Items containing these allergens will be flagged:")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.textTertiary)
+                .padding(.top, 4)
+
+            FlowLayout(spacing: 8) {
+                ForEach(Allergen.allCases) { allergen in
+                    let isOn = exclusions.contains(allergen.rawValue)
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            if isOn { exclusions.removeAll { $0 == allergen.rawValue } }
+                            else    { exclusions.append(allergen.rawValue) }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: allergen.icon)
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(allergen.rawValue)
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(isOn ? Color.statusClosed : Color.surfaceRaised)
+                        .foregroundStyle(isOn ? .white : Color.textSecondary)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                }
+            }
+
+            if !exclusions.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.statusClosed)
+                    Text("Menu items with these allergens will show a warning badge")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(.bottom, 6)
     }
 }
 
