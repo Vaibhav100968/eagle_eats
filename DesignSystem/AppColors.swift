@@ -1,35 +1,46 @@
 import SwiftUI
 
 // MARK: - UNT Eagle Eats Design System Colors
+// Adaptive colors that work in both light and dark mode.
 
 extension Color {
 
-    // MARK: UNT Green Palette
-    static let untGreenPrimary   = Color(hex: "00853E")   // Official UNT Green
-    static let untGreenDark      = Color(hex: "005227")   // Deep Forest
-    static let untGreenDeep      = Color(hex: "003D1F")   // Darkest anchor
-    static let untGreenMedium    = Color(hex: "1A9E4E")   // Vibrant mid-tone
-    static let untGreenLight     = Color(hex: "34C068")   // Bright leaf
-    static let untGreenSoft      = Color(hex: "5ED68A")   // Soft lime
-    static let untGreenMint      = Color(hex: "A3E8BE")   // Pale mint
-    static let untGreenPale      = Color(hex: "D4F4E4")   // Whisper green
-    static let untGreenBackground = Color(hex: "F0FAF4")  // App surface tint
+    // MARK: UNT Green Palette (static, same in both modes)
+    static let untGreenPrimary   = Color(hex: "00853E")
+    static let untGreenDark      = Color(hex: "005227")
+    static let untGreenDeep      = Color(hex: "003D1F")
+    static let untGreenMedium    = Color(hex: "1A9E4E")
+    static let untGreenLight     = Color(hex: "34C068")
+    static let untGreenSoft      = Color(hex: "5ED68A")
+    static let untGreenMint      = Color(hex: "A3E8BE")
+    static let untGreenPale      = Color(hex: "D4F4E4")
 
-    // MARK: Semantic Surfaces
-    static let surfaceBase       = Color(hex: "FFFFFF")
-    static let surfaceRaised     = Color(hex: "F7F7F7")
-    static let surfaceCard       = Color(hex: "FAFAFA")
-    static let surfaceOverlay    = Color(hex: "F2F8F4")
+    // MARK: Adaptive Surfaces
+    static let untGreenBackground = Color("untGreenBackground", bundle: nil)
+        .ifUnavailable(light: "F0FAF4", dark: "0D1117")
+    static let surfaceBase = Color("surfaceBase", bundle: nil)
+        .ifUnavailable(light: "FFFFFF", dark: "161B22")
+    static let surfaceRaised = Color("surfaceRaised", bundle: nil)
+        .ifUnavailable(light: "F7F7F7", dark: "1C2128")
+    static let surfaceCard = Color("surfaceCard", bundle: nil)
+        .ifUnavailable(light: "FAFAFA", dark: "1C2128")
+    static let surfaceOverlay = Color("surfaceOverlay", bundle: nil)
+        .ifUnavailable(light: "F2F8F4", dark: "162217")
 
-    // MARK: Text
-    static let textPrimary       = Color(hex: "111827")
-    static let textSecondary     = Color(hex: "6B7280")
-    static let textTertiary      = Color(hex: "9CA3AF")
+    // MARK: Adaptive Text
+    static let textPrimary = Color("textPrimary", bundle: nil)
+        .ifUnavailable(light: "111827", dark: "E6EDF3")
+    static let textSecondary = Color("textSecondary", bundle: nil)
+        .ifUnavailable(light: "6B7280", dark: "8B949E")
+    static let textTertiary = Color("textTertiary", bundle: nil)
+        .ifUnavailable(light: "9CA3AF", dark: "6E7681")
     static let textInverse       = Color(hex: "FFFFFF")
 
-    // MARK: Borders & Dividers
-    static let borderSubtle      = Color(hex: "E5E7EB")
-    static let borderMedium      = Color(hex: "D1D5DB")
+    // MARK: Adaptive Borders
+    static let borderSubtle = Color("borderSubtle", bundle: nil)
+        .ifUnavailable(light: "E5E7EB", dark: "30363D")
+    static let borderMedium = Color("borderMedium", bundle: nil)
+        .ifUnavailable(light: "D1D5DB", dark: "484F58")
 
     // MARK: Status Colors
     static let statusOpen        = Color(hex: "00853E")
@@ -61,6 +72,22 @@ extension Color {
                   blue:    Double(b) / 255,
                   opacity: Double(a) / 255)
     }
+
+    /// Fallback for named colors: uses light/dark hex pairs when asset catalog colors are absent.
+    static func ifUnavailable(light: String, dark: String) -> Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(Color(hex: dark)) : UIColor(Color(hex: light))
+        })
+    }
+}
+
+extension Color {
+    /// Instance version for chaining.
+    func ifUnavailable(light: String, dark: String) -> Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(Color(hex: dark)) : UIColor(Color(hex: light))
+        })
+    }
 }
 
 // MARK: - Gradient Presets
@@ -82,7 +109,7 @@ extension LinearGradient {
         endPoint: .bottom
     )
     static let macroRingBackground = LinearGradient(
-        colors: [Color(hex: "F0FAF4"), Color(hex: "E8F5EE")],
+        colors: [Color.untGreenBackground, Color.surfaceOverlay],
         startPoint: .top,
         endPoint: .bottom
     )

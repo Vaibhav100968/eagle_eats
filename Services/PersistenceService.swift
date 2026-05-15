@@ -180,6 +180,7 @@ struct AppSettings: Codable, Equatable {
     var menuHighlights:      Bool   = true    // Morning menu summary
     var reminderMinutesBefore: Int  = 15      // How many minutes before meal to remind
     var reducedMotion:      Bool    = false
+    var darkModePreference: String  = "system" // "system", "light", "dark"
     var defaultHallId:      String? = nil
-    var favoriteItemNames:  [String] = []     // Menu item names to watch for
+    var favoriteItemNames:  [String] = []
 }

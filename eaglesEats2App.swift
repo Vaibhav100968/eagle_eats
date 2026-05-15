@@ -24,11 +24,19 @@ struct eaglesEats2App: App {
                 .environmentObject(diningService)
                 .environmentObject(plateVM)
                 .environmentObject(historyVM)
-                .preferredColorScheme(.light)
+                .preferredColorScheme(resolvedColorScheme)
                 .task {
                     await warmUpEngines()
                     await scheduleNotifications()
                 }
+        }
+    }
+
+    private var resolvedColorScheme: ColorScheme? {
+        switch appState.settings.darkModePreference {
+        case "dark":  return .dark
+        case "light": return .light
+        default:      return nil  // follow system
         }
     }
 

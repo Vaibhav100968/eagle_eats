@@ -104,7 +104,9 @@ struct SettingsView: View {
                         }
 
                         // MARK: App Preferences
-                        SettingsSection(title: "App Preferences", icon: "gearshape.fill") {
+                        SettingsSection(title: "Appearance", icon: "paintbrush.fill") {
+                            AppearancePicker(preference: $settings.darkModePreference)
+                            Divider().padding(.leading, 54)
                             SettingsToggleRow(
                                 icon: "figure.walk",
                                 label: "Reduced Motion",
@@ -751,6 +753,59 @@ struct AnalyticsExportSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Appearance Picker
+
+private struct AppearancePicker: View {
+    @Binding var preference: String
+
+    private let options: [(id: String, label: String, icon: String)] = [
+        ("system", "System", "gear"),
+        ("light",  "Light",  "sun.max.fill"),
+        ("dark",   "Dark",   "moon.fill"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(hex: "8B5CF6").opacity(0.15))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "moon.stars.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color(hex: "8B5CF6"))
+            }
+            Text("Theme")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
+            Spacer()
+            HStack(spacing: 4) {
+                ForEach(options, id: \.id) { option in
+                    let isSelected = preference == option.id
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            preference = option.id
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: option.icon)
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(option.label)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(isSelected ? Color(hex: "8B5CF6") : Color.surfaceRaised)
+                        .foregroundStyle(isSelected ? .white : Color.textTertiary)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
