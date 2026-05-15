@@ -39,8 +39,40 @@ targets:
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: EagleEatsWidget
+        embed: true
     entitlements:
       path: eaglesEats2.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.eagleeats.shared
+
+  EagleEatsWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: EagleEatsWidget
+      - path: Models/WidgetModels.swift
+    info:
+      path: EagleEatsWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Eagle Eats Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vaibhav08.eaglesEats2.widget
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        TARGETED_DEVICE_FAMILY: "1"
+    entitlements:
+      path: EagleEatsWidget/EagleEatsWidget.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.eagleeats.shared

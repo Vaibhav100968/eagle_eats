@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import WidgetKit
 
 // MARK: - Dining Service
 // Data source: Supabase (Postgres) — populated by AWS Lambda scraper at 5 AM CST daily.
@@ -110,6 +111,9 @@ final class DiningService: ObservableObject {
 
             // Cache for offline use
             saveToCache(dateStr: dateStr)
+
+            // Update widget data
+            updateWidgetData()
 
         } catch {
             print("[DiningService] Supabase fetch error: \(error)")
@@ -280,6 +284,49 @@ final class DiningService: ObservableObject {
             if !seen.contains(s) { seen.append(s) }
         }
         return seen
+    }
+
+    // MARK: - Widget Data
+
+    private func updateWidgetData() {
+        guard let defaults = UserDefaults(suiteName: "group.com.eagleeats.shared") else { return }
+
+        let period = MealPeriod.current()
+
+        // Flatten top menu items across all halls for the current meal period
+        var widgetItems: [WidgetMenuItem] = []
+        for hall in halls {
+            let items = menuItems(for: hall, period: period)
+            for item in items.prefix(3) {
+                widgetItems.append(WidgetMenuItem(
+                    id: item.id,
+                    name: item.name,
+                    hallName: hall.name,
+                    calories: Int(item.nutrition.calories),
+                    station: item.station
+                ))
+            }
+        }
+
+        let hallStatuses = halls.map { hall in
+            WidgetHallStatus(
+                id: hall.id,
+                name: hall.name,
+                isOpen: hall.isOpen,
+                mealPeriod: hall.currentMealPeriod.rawValue
+            )
+        }
+
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(Array(widgetItems.prefix(8))) {
+            defaults.set(data, forKey: "widget_menu_items")
+        }
+        if let data = try? encoder.encode(hallStatuses) {
+            defaults.set(data, forKey: "widget_hall_statuses")
+        }
+        defaults.set(period.rawValue, forKey: "widget_meal_period")
+
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Offline Cache
