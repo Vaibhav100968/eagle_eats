@@ -274,6 +274,15 @@ struct MenuItemRow: View {
             QuickRatingBar(item: current)
                 .padding(.horizontal, 16)
 
+            // Photo reviews
+            PhotoReviewGallery(
+                recipeId: current.recipeID,
+                menuItemName: current.name,
+                hallId: current.diningHallId,
+                hallName: hall.name
+            )
+            .padding(.horizontal, 16)
+
             // Crowdsourced availability
             availabilitySection(for: current)
                 .padding(.horizontal, 16)
