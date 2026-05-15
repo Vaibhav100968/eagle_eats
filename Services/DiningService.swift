@@ -25,9 +25,14 @@ final class DiningService: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var lastUpdated: Date? = nil
     @Published var fetchError: String? = nil
+    @Published var isOfflineMode: Bool = false
 
     @Published private(set) var nutritionCache: [String: NutritionInfo] = [:]
     private var nutritionFetchInProgress: Set<String> = []
+
+    private let cacheKey = "eagle_eats_menu_cache"
+    private let cacheDateKey = "eagle_eats_menu_cache_date"
+    private let nutritionCacheKey = "eagle_eats_nutrition_cache"
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -36,6 +41,8 @@ final class DiningService: ObservableObject {
 
         supabaseURL = SupabaseConfig.url.absoluteString
         supabaseKey = SupabaseConfig.anonKey
+
+        loadFromCache()
     }
 
     // MARK: - Supabase REST Helpers
@@ -95,16 +102,29 @@ final class DiningService: ObservableObject {
             }
 
             lastUpdated = Date()
+            isOfflineMode = false
             print("[DiningService] Loaded \(rows.count) items from Supabase for \(dateStr)")
 
             // Record menu history for trend analysis
             MenuHistoryService.shared.recordMenus(menusByHall, halls: halls)
 
+            // Cache for offline use
+            saveToCache(dateStr: dateStr)
+
         } catch {
             print("[DiningService] Supabase fetch error: \(error)")
             fetchError = error.localizedDescription
 
-            // If Supabase is down, keep any existing data
+            // Fall back to cached data if available
+            if menusByHall.values.allSatisfy({ $0.isEmpty }) {
+                loadFromCache()
+                if menusByHall.values.contains(where: { !$0.isEmpty }) {
+                    isOfflineMode = true
+                    fetchError = nil
+                    print("[DiningService] Loaded menus from offline cache")
+                }
+            }
+
             for hall in halls where menusByHall[hall.id] == nil {
                 menusByHall[hall.id] = []
             }
@@ -260,6 +280,33 @@ final class DiningService: ObservableObject {
             if !seen.contains(s) { seen.append(s) }
         }
         return seen
+    }
+
+    // MARK: - Offline Cache
+
+    private func saveToCache(dateStr: String) {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(menusByHall) {
+            UserDefaults.standard.set(data, forKey: cacheKey)
+            UserDefaults.standard.set(dateStr, forKey: cacheDateKey)
+        }
+        if let nData = try? encoder.encode(nutritionCache) {
+            UserDefaults.standard.set(nData, forKey: nutritionCacheKey)
+        }
+    }
+
+    private func loadFromCache() {
+        let decoder = JSONDecoder()
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cached = try? decoder.decode([String: [MenuItem]].self, from: data) {
+            menusByHall = cached
+            let dateStr = UserDefaults.standard.string(forKey: cacheDateKey) ?? ""
+            print("[DiningService] Cache loaded (\(dateStr))")
+        }
+        if let nData = UserDefaults.standard.data(forKey: nutritionCacheKey),
+           let cached = try? decoder.decode([String: NutritionInfo].self, from: nData) {
+            nutritionCache = cached
+        }
     }
 
     // MARK: - Helpers

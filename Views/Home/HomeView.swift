@@ -42,6 +42,23 @@ struct HomeView: View {
                             .opacity(headerVisible ? 1 : 0)
                             .offset(y: headerVisible ? 0 : -20)
 
+                        // MARK: Offline Banner
+                        if diningService.isOfflineMode {
+                            HStack(spacing: 8) {
+                                Image(systemName: "wifi.slash")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Offline Mode — showing cached menus")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Spacer()
+                            }
+                            .foregroundStyle(Color(hex: "F59E0B"))
+                            .padding(12)
+                            .background(Color(hex: "F59E0B").opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 22)
+                            .padding(.bottom, 8)
+                        }
+
                         // MARK: Meal Period Banner
                         mealPeriodBanner
                             .padding(.horizontal, 22)
