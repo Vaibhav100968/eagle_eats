@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS nutrition_info (
 );
 
 -- Migration for existing tables (safe to re-run):
--- ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS allergens TEXT[] DEFAULT '{}';
--- ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS ingredients TEXT DEFAULT '';
+ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS allergens TEXT[] DEFAULT '{}';
+ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS ingredients TEXT DEFAULT '';
 
 -- 4. App Users (linked to UNT identity from portal SSO)
 CREATE TABLE IF NOT EXISTS app_users (
@@ -126,6 +126,35 @@ CREATE POLICY "Service write scrape_log"    ON scrape_log    FOR ALL USING (true
 -- Users can only see their own row
 CREATE POLICY "Users read own data" ON app_users FOR SELECT USING (true);
 CREATE POLICY "Service write app_users" ON app_users FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- Social: Check-ins (Feature 4)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS check_ins (
+    id          TEXT PRIMARY KEY,
+    hall_id     TEXT NOT NULL REFERENCES dining_halls(id),
+    hall_name   TEXT NOT NULL,
+    meal_period TEXT NOT NULL,
+    user_name   TEXT DEFAULT 'Eagle',
+    checked_in_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE check_ins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read check_ins"
+    ON check_ins FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Public insert check_ins"
+    ON check_ins FOR INSERT TO anon WITH CHECK (true);
+
+-- Auto-cleanup: remove check-ins older than 7 days
+CREATE OR REPLACE FUNCTION cleanup_old_checkins()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM check_ins WHERE checked_in_date < CURRENT_DATE - INTERVAL '7 days';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================
 -- Helper: Delete old menu data (keep 7 days)

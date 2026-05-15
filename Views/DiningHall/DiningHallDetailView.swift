@@ -10,6 +10,8 @@ struct DiningHallDetailView: View {
     @EnvironmentObject private var appState:      AppState
     @Environment(\.dismiss) private var dismiss
 
+    @StateObject private var socialService = SocialService.shared
+
     @State private var selectedPeriod:   MealPeriod    = MealPeriod.current()
     @State private var searchText:       String        = ""
     @State private var showingNutrition: MenuItem?     = nil
@@ -18,6 +20,7 @@ struct DiningHallDetailView: View {
     @State private var addedItem:        MenuItem?     = nil
     @State private var menuFilter:       MenuFilter    = MenuFilter()
     @State private var showFilters:      Bool          = false
+    @State private var showCheckInConfirm: Bool        = false
 
     /// Ordered list of unique station names for the current period.
     private var stations: [String] { diningService.stations(for: hall, period: selectedPeriod) }
@@ -92,6 +95,11 @@ struct DiningHallDetailView: View {
 
                     // MARK: Directions
                     directionsBar
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
+
+                    // MARK: Check-In Bar
+                    checkInBar
                         .padding(.horizontal, 20)
                         .padding(.bottom, 16)
 
@@ -832,6 +840,78 @@ struct DiningHallDetailView: View {
         .padding(.vertical, 6)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
+    }
+
+    // MARK: - Check-In Bar
+
+    private var checkInBar: some View {
+        let isCheckedIn = socialService.activeCheckIn?.hallId == hall.id
+        let checkInCount = socialService.hallCheckInCounts[hall.id] ?? 0
+
+        return HStack(spacing: 12) {
+            Button {
+                if isCheckedIn {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        socialService.checkOut()
+                    }
+                } else {
+                    let userName: String? = {
+                        if case .signedIn(_, let name) = appState.authState { return name }
+                        return nil
+                    }()
+                    Task {
+                        await socialService.checkIn(
+                            hallId: hall.id,
+                            hallName: hall.name,
+                            mealPeriod: selectedPeriod.rawValue,
+                            userName: userName
+                        )
+                    }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        showCheckInConfirm = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { showCheckInConfirm = false }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isCheckedIn ? "checkmark.circle.fill" : "mappin.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(isCheckedIn ? "Checked In" : "I'm Eating Here")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(isCheckedIn ? .white : Color.untGreenPrimary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(isCheckedIn ? Color.untGreenPrimary : Color.untGreenPrimary.opacity(0.12))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(SpringButtonStyle())
+
+            if showCheckInConfirm {
+                Text("You're checked in!")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.untGreenPrimary)
+                    .transition(.scale.combined(with: .opacity))
+            }
+
+            Spacer()
+
+            if checkInCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 11))
+                    Text("\(checkInCount) dining")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Color.textSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.surfaceRaised)
+                .clipShape(Capsule())
+            }
+        }
     }
 
     private var todayHours: String {

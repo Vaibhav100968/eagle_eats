@@ -12,6 +12,7 @@ struct PlateBuilderView: View {
     @State private var savedMeal: SavedMeal? = nil
     @State private var listVisible = false
     @State private var saving = false
+    @State private var showShareSheet = false
 
     var body: some View {
         NavigationStack {
@@ -200,34 +201,52 @@ struct PlateBuilderView: View {
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: -4)
             .padding(.horizontal, 16)
 
-            // Save button
-            Button {
-                saveMeal()
-            } label: {
-                HStack(spacing: 10) {
-                    if saving {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    Text(saving ? "Saving..." : "Save Meal to History")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+            HStack(spacing: 12) {
+                // Share button
+                Button {
+                    showShareSheet = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 56, height: 56)
+                        .background(Color.surfaceRaised)
+                        .foregroundStyle(Color.untGreenPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(
-                    LinearGradient(colors: [.untGreenMedium, .untGreenDark], startPoint: .leading, endPoint: .trailing)
-                )
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .shadow(color: Color.untGreenDark.opacity(0.4), radius: 14, x: 0, y: 6)
-                .padding(.horizontal, 16)
+                .buttonStyle(SpringButtonStyle())
+
+                // Save button
+                Button {
+                    saveMeal()
+                } label: {
+                    HStack(spacing: 10) {
+                        if saving {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "bookmark.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        Text(saving ? "Saving..." : "Save Meal")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        LinearGradient(colors: [.untGreenMedium, .untGreenDark], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: Color.untGreenDark.opacity(0.4), radius: 14, x: 0, y: 6)
+                }
+                .buttonStyle(SpringButtonStyle())
+                .disabled(saving)
             }
-            .buttonStyle(SpringButtonStyle())
-            .disabled(saving)
+            .padding(.horizontal, 16)
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(text: plateShareText)
+            }
         }
         .padding(.bottom, 20)
         .background(
@@ -241,6 +260,12 @@ struct PlateBuilderView: View {
 
     // MARK: - Save Action
 
+    private var plateShareText: String {
+        let hallName = plateVM.selectedHall?.name ?? "UNT Dining"
+        let items = plateVM.plate.items.map { (name: $0.menuItem.name, calories: $0.menuItem.nutrition.calories * Double($0.quantity)) }
+        return SocialService.shared.sharePlateText(items: items, hallName: hallName)
+    }
+
     private func saveMeal() {
         withAnimation(.spring(response: 0.3)) { saving = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -250,6 +275,18 @@ struct PlateBuilderView: View {
             showSaveConfirmation = true
         }
     }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let text: String
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Plate Item Row

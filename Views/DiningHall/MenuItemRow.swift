@@ -270,6 +270,10 @@ struct MenuItemRow: View {
                     .padding(.horizontal, 16)
             }
 
+            // Quick rating
+            QuickRatingBar(item: current)
+                .padding(.horizontal, 16)
+
             // Crowdsourced availability
             availabilitySection(for: current)
                 .padding(.horizontal, 16)
@@ -451,6 +455,62 @@ struct AllergenBadgeRow: View {
                     .padding(.vertical, 3)
                     .background(Color.surfaceRaised)
                     .clipShape(Capsule())
+            }
+        }
+    }
+}
+
+// MARK: - Quick Rating Bar
+
+private struct QuickRatingBar: View {
+    let item: MenuItem
+    @State private var selectedRating: Int = 0
+    @State private var showConfirm: Bool = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Rate this item")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.textTertiary)
+
+            HStack(spacing: 4) {
+                ForEach(1...5, id: \.self) { star in
+                    Button {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                            selectedRating = star
+                            showConfirm = true
+                        }
+                        SocialService.shared.rateItem(
+                            itemId: item.id,
+                            recipeId: item.recipeID,
+                            hallId: "",
+                            rating: star
+                        )
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            withAnimation { showConfirm = false }
+                        }
+                    } label: {
+                        Image(systemName: star <= selectedRating ? "star.fill" : "star")
+                            .font(.system(size: 16))
+                            .foregroundStyle(star <= selectedRating ? Color(hex: "F59E0B") : Color.textTertiary.opacity(0.4))
+                            .scaleEffect(star <= selectedRating ? 1.1 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Spacer()
+
+            if showConfirm {
+                Text("Thanks!")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(hex: "F59E0B"))
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .onAppear {
+            if let existing = SocialService.shared.rating(for: item.id) {
+                selectedRating = existing
             }
         }
     }
