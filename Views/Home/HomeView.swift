@@ -98,6 +98,41 @@ struct HomeView: View {
                         diningDollarsSection
                             .padding(.bottom, 24)
 
+                        // MARK: Menu Trends
+                        NavigationLink(destination: MenuTrendsView()) {
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(LinearGradient(colors: [Color(hex: "F59E0B"), Color(hex: "EF4444")], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                        .frame(width: 48, height: 48)
+                                    Image(systemName: "chart.line.uptrend.xyaxis")
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                }
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Menu Trends")
+                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.textPrimary)
+                                    Text("See patterns & predictions")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.textSecondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.textTertiary)
+                            }
+                            .padding(16)
+                            .background(Color.surfaceBase)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 22)
+                        .padding(.bottom, 20)
+
                         // MARK: Your Patterns (Habit Engine)
                         if !habitEngine.insights.isEmpty {
                             HabitInsightsSection(insights: habitEngine.insights)

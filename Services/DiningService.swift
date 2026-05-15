@@ -97,6 +97,9 @@ final class DiningService: ObservableObject {
             lastUpdated = Date()
             print("[DiningService] Loaded \(rows.count) items from Supabase for \(dateStr)")
 
+            // Record menu history for trend analysis
+            MenuHistoryService.shared.recordMenus(menusByHall, halls: halls)
+
         } catch {
             print("[DiningService] Supabase fetch error: \(error)")
             fetchError = error.localizedDescription
