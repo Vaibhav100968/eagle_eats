@@ -16,7 +16,6 @@ struct SettingsView: View {
     @State private var appeared:              Bool         = false
     @State private var showExport:            Bool         = false
     @State private var exportJSON:            String       = ""
-    @State private var notificationsEnabled:  Bool         = false
     @State private var biometricEnabled:      Bool         = false
 
     var body: some View {
@@ -58,15 +57,54 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .staggerIn(visible: appeared, delay: 0.20)
 
-                        // MARK: App Preferences
-                        SettingsSection(title: "App Preferences", icon: "gearshape.fill") {
+                        // MARK: Notifications
+                        SettingsSection(title: "Notifications", icon: "bell.badge.fill") {
                             SettingsToggleRow(
                                 icon: "bell.fill",
-                                label: "Meal Notifications",
-                                color: .macroFat,
+                                label: "Enable Notifications",
+                                color: Color(hex: "F59E0B"),
                                 value: $settings.notificationsEnabled
                             )
-                            Divider().padding(.leading, 54)
+
+                            if settings.notificationsEnabled {
+                                Divider().padding(.leading, 54)
+                                SettingsToggleRow(
+                                    icon: "clock.fill",
+                                    label: "Meal Period Reminders",
+                                    color: .macroCarbs,
+                                    value: $settings.mealRemindersEnabled
+                                )
+                                if settings.mealRemindersEnabled {
+                                    ReminderTimePicker(minutes: $settings.reminderMinutesBefore)
+                                }
+                                Divider().padding(.leading, 54)
+                                SettingsToggleRow(
+                                    icon: "heart.fill",
+                                    label: "Favorite Hall Opens",
+                                    color: .statusClosed,
+                                    value: $settings.hallOpenAlerts
+                                )
+                                Divider().padding(.leading, 54)
+                                SettingsToggleRow(
+                                    icon: "sparkles",
+                                    label: "Morning Menu Summary",
+                                    color: .untGreenPrimary,
+                                    value: $settings.menuHighlights
+                                )
+                                Divider().padding(.leading, 54)
+                                FavoriteItemsEditor(items: $settings.favoriteItemNames)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .staggerIn(visible: appeared, delay: 0.22)
+                        .onChange(of: settings.notificationsEnabled) { _, enabled in
+                            if enabled {
+                                Task { await NotificationService.shared.requestAuthorization() }
+                            }
+                        }
+
+                        // MARK: App Preferences
+                        SettingsSection(title: "App Preferences", icon: "gearshape.fill") {
                             SettingsToggleRow(
                                 icon: "figure.walk",
                                 label: "Reduced Motion",
@@ -75,7 +113,7 @@ struct SettingsView: View {
                             )
                         }
                         .padding(.horizontal, 20)
-                        .staggerIn(visible: appeared, delay: 0.22)
+                        .staggerIn(visible: appeared, delay: 0.24)
 
                         // MARK: Dining Halls Status
                         SettingsSection(title: "Dining Hall Status", icon: "building.2.fill") {
@@ -147,15 +185,8 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .staggerIn(visible: appeared, delay: 0.38)
 
-                        // MARK: Notifications & Security
-                        SettingsSection(title: "Notifications & Security", icon: "bell.badge.fill") {
-                            SettingsToggleRow(
-                                icon: "bell.fill",
-                                label: "Crowd Alerts",
-                                color: Color(hex: "FF9500"),
-                                value: $notificationsEnabled
-                            )
-                            Divider().padding(.leading, 54)
+                        // MARK: Security
+                        SettingsSection(title: "Security", icon: "lock.shield.fill") {
                             SettingsToggleRow(
                                 icon: biometricService.biometryIcon,
                                 label: biometricService.biometryName,
@@ -205,16 +236,10 @@ struct SettingsView: View {
         }
         .onAppear {
             settings = appState.settings
-            notificationsEnabled = notifService.isAuthorized
             weeklyProfile.refresh()
             analytics.refresh()
             withAnimation(.spring(response: 0.5, dampingFraction: 0.82).delay(0.1)) {
                 appeared = true
-            }
-        }
-        .onChange(of: notificationsEnabled) { _, enabled in
-            if enabled {
-                Task { await notifService.requestAuthorization() }
             }
         }
     }
@@ -726,6 +751,139 @@ struct AnalyticsExportSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Reminder Time Picker
+
+private struct ReminderTimePicker: View {
+    @Binding var minutes: Int
+
+    let options = [5, 10, 15, 30, 60]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "timer")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.textTertiary)
+            Text("Remind me")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.textSecondary)
+            Spacer()
+            HStack(spacing: 6) {
+                ForEach(options, id: \.self) { opt in
+                    let isSelected = minutes == opt
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            minutes = opt
+                        }
+                    } label: {
+                        Text(opt < 60 ? "\(opt)m" : "1h")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(isSelected ? Color.macroCarbs : Color.surfaceRaised)
+                            .foregroundStyle(isSelected ? .white : Color.textTertiary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.leading, 54)
+    }
+}
+
+// MARK: - Favorite Items Editor
+
+private struct FavoriteItemsEditor: View {
+    @Binding var items: [String]
+    @State private var newItem: String = ""
+    @FocusState private var isFieldFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider().padding(.leading, 54)
+
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(hex: "F59E0B").opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(hex: "F59E0B"))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Favorite Items")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.textPrimary)
+                    Text("Get notified when these appear on the menu")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+            .padding(.vertical, 4)
+
+            // Current items
+            if !items.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(items, id: \.self) { item in
+                        HStack(spacing: 4) {
+                            Text(item)
+                                .font(.system(size: 12, weight: .semibold))
+                            Button {
+                                withAnimation(.spring(response: 0.3)) {
+                                    items.removeAll { $0 == item }
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                        }
+                        .foregroundStyle(Color(hex: "F59E0B"))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: "F59E0B").opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                }
+                .padding(.leading, 54)
+            }
+
+            // Add new item
+            HStack(spacing: 8) {
+                TextField("e.g. Mac and Cheese", text: $newItem)
+                    .font(.system(size: 14))
+                    .focused($isFieldFocused)
+                    .onSubmit { addItem() }
+
+                if !newItem.isEmpty {
+                    Button { addItem() } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color.untGreenPrimary)
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.leading, 54)
+        }
+    }
+
+    private func addItem() {
+        let trimmed = newItem.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !items.contains(trimmed) else { return }
+        withAnimation(.spring(response: 0.3)) {
+            items.append(trimmed)
+            newItem = ""
+        }
+        isFieldFocused = false
     }
 }
 

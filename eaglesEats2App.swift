@@ -26,9 +26,8 @@ struct eaglesEats2App: App {
                 .environmentObject(historyVM)
                 .preferredColorScheme(.light)
                 .task {
-                    // Warm up behavioral engines after the app is running so
-                    // persisted history is available for initial computations.
                     await warmUpEngines()
+                    await scheduleNotifications()
                 }
         }
     }
@@ -37,7 +36,31 @@ struct eaglesEats2App: App {
     private func warmUpEngines() async {
         weeklyProfile.refresh()
         analyticsEngine.refresh()
-        // BudgetEngine and RecommendationEngine refresh reactively when
-        // MealPlanService / DiningService post new data.
+    }
+
+    @MainActor
+    private func scheduleNotifications() async {
+        let notifService = NotificationService.shared
+        await notifService.checkAuthorization()
+
+        guard notifService.isAuthorized else { return }
+
+        let settings = appState.settings
+        let favoriteIds = PersistenceService.shared.loadFavoriteHallIds()
+
+        notifService.refreshAllNotifications(
+            settings: settings,
+            favoriteHallIds: favoriteIds,
+            halls: diningService.halls
+        )
+
+        // Check for favorite menu items after menus are loaded
+        let allItems = diningService.menusByHall.values.flatMap { $0 }
+        if !allItems.isEmpty && !settings.favoriteItemNames.isEmpty {
+            notifService.checkFavoriteItems(
+                menuItems: Array(allItems),
+                favoriteNames: settings.favoriteItemNames
+            )
+        }
     }
 }

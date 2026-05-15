@@ -173,8 +173,13 @@ struct AppSettings: Codable, Equatable {
     var dailyCarbGoal:      Double = 250
     var dailyFatGoal:       Double = 65
     var dietaryFilters:     [String] = []
-    var allergenExclusions: [String] = []   // Allergen rawValues the user wants to avoid
+    var allergenExclusions: [String] = []
     var notificationsEnabled: Bool  = true
+    var mealRemindersEnabled: Bool  = true    // Remind before each meal period
+    var hallOpenAlerts:      Bool   = true    // Alert when favorite hall opens
+    var menuHighlights:      Bool   = true    // Morning menu summary
+    var reminderMinutesBefore: Int  = 15      // How many minutes before meal to remind
     var reducedMotion:      Bool    = false
     var defaultHallId:      String? = nil
+    var favoriteItemNames:  [String] = []     // Menu item names to watch for
 }
