@@ -212,6 +212,10 @@ struct SettingsView: View {
                                 UIApplication.shared.open(AppSupport.privacyPolicyURL)
                             }
                             Divider().padding(.leading, 54)
+                            SettingsLinkRow(icon: "questionmark.circle.fill", label: "Support (Web)", color: .untGreenPrimary) {
+                                UIApplication.shared.open(AppSupport.supportURL)
+                            }
+                            Divider().padding(.leading, 54)
                             NavigationLink {
                                 HealthDisclaimerView()
                             } label: {
