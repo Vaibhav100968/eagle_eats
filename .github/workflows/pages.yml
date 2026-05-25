@@ -1,5 +1,7 @@
 name: Deploy GitHub Pages
 
+# Privacy policy & support pages only — menu scraping runs on AWS Lambda.
+
 on:
   push:
     branches: [main]
@@ -30,16 +32,10 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: docs
-          destination: _site
-
-      - name: Upload artifact
+      - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: docs
 
       - name: Deploy to GitHub Pages
         id: deployment
