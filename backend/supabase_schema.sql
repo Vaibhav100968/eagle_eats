@@ -1,23 +1,28 @@
 -- ============================================================
 -- Eagle Eats — Supabase (Postgres) Schema
 -- Run this in: Supabase Dashboard → SQL Editor → New Query
+--
+-- Security model:
+--   • anon (iOS app): READ menu tables + check_ins; INSERT check_ins only
+--   • service_role (Lambda): full access (bypasses RLS — no write policies needed)
+--   • app_users, scrape_log: no anon/authenticated access
 -- ============================================================
 
 -- 1. Dining Halls (static reference table)
 CREATE TABLE IF NOT EXISTS dining_halls (
-    id            TEXT PRIMARY KEY,            -- e.g. "bruceteria"
-    location_id   INTEGER NOT NULL UNIQUE,     -- UNT site locationID (10, 15, 20, 25, 31)
+    id            TEXT PRIMARY KEY,
+    location_id   INTEGER NOT NULL UNIQUE,
     name          TEXT NOT NULL,
     subtitle      TEXT,
     description   TEXT,
-    location_text TEXT,                        -- human address
+    location_text TEXT,
     latitude      DOUBLE PRECISION,
     longitude     DOUBLE PRECISION,
     gradient_start TEXT,
     gradient_end   TEXT,
     icon_name     TEXT,
     hours_text    TEXT,
-    weekday_open  INTEGER DEFAULT 0,          -- minutes from midnight
+    weekday_open  INTEGER DEFAULT 0,
     weekday_close INTEGER DEFAULT 0,
     weekend_open  INTEGER DEFAULT 0,
     weekend_close INTEGER DEFAULT 0,
@@ -25,7 +30,6 @@ CREATE TABLE IF NOT EXISTS dining_halls (
     created_at    TIMESTAMPTZ DEFAULT now()
 );
 
--- Seed the 5 UNT dining halls
 INSERT INTO dining_halls (id, location_id, name, subtitle, description, location_text, latitude, longitude, gradient_start, gradient_end, icon_name, hours_text, weekday_open, weekday_close, weekend_open, weekend_close, tags)
 VALUES
     ('mean-greens',  10, 'Mean Greens Café', '100% Vegan', 'America''s first all-vegan university dining hall.', 'Maple Hall, 902 Avenue C', 33.20850, -97.15120, '00853E', '003D1F', 'leaf.circle.fill', 'Mon–Thu 7 AM – 8 PM', 420, 1200, 0, 0, ARRAY['Vegan','Plant-Based','Sustainable']),
@@ -39,15 +43,15 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- 2. Menu Items (scraped daily by Lambda)
 CREATE TABLE IF NOT EXISTS menu_items (
-    id            TEXT PRIMARY KEY,            -- "{hall_id}-{recipe_id}"
+    id            TEXT PRIMARY KEY,
     hall_id       TEXT NOT NULL REFERENCES dining_halls(id),
     recipe_id     TEXT NOT NULL,
     name          TEXT NOT NULL,
     description   TEXT DEFAULT '',
     category      TEXT DEFAULT 'Entrées',
     station       TEXT DEFAULT '',
-    meal_periods  TEXT[] NOT NULL DEFAULT '{}', -- e.g. {"Breakfast","Lunch"}
-    dietary_tags  JSONB DEFAULT '[]',           -- [{id, label, color, icon}]
+    meal_periods  TEXT[] NOT NULL DEFAULT '{}',
+    dietary_tags  JSONB DEFAULT '[]',
     menu_date     DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -67,102 +71,128 @@ CREATE TABLE IF NOT EXISTS nutrition_info (
     sugar         DOUBLE PRECISION,
     sodium        DOUBLE PRECISION,
     serving_size  TEXT,
-    allergens     TEXT[] DEFAULT '{}',             -- e.g. {"Milk","Eggs","Wheat"}
-    ingredients   TEXT DEFAULT '',                 -- full ingredient list from label
+    allergens     TEXT[] DEFAULT '{}',
+    ingredients   TEXT DEFAULT '',
     fetched_at    TIMESTAMPTZ DEFAULT now()
 );
 
--- Migration for existing tables (safe to re-run):
 ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS allergens TEXT[] DEFAULT '{}';
 ALTER TABLE nutrition_info ADD COLUMN IF NOT EXISTS ingredients TEXT DEFAULT '';
 
--- 4. App Users (linked to UNT identity from portal SSO)
+-- 4. App Users (server-side only — not used by iOS anon client today)
 CREATE TABLE IF NOT EXISTS app_users (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     unt_display_name TEXT,
-    unt_identifier   TEXT UNIQUE,              -- EID / NetID if extractable
-    device_id     TEXT,                        -- anonymous device fingerprint
-    created_at    TIMESTAMPTZ DEFAULT now(),
-    last_seen_at  TIMESTAMPTZ DEFAULT now()
+    unt_identifier   TEXT UNIQUE,
+    device_id        TEXT,
+    created_at       TIMESTAMPTZ DEFAULT now(),
+    last_seen_at     TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_app_users_identifier ON app_users(unt_identifier);
 
--- 5. Scrape Log (track Lambda runs for debugging)
+-- 5. Scrape Log (Lambda / service_role only)
 CREATE TABLE IF NOT EXISTS scrape_log (
-    id            BIGSERIAL PRIMARY KEY,
-    scrape_date   DATE NOT NULL,
-    halls_scraped INTEGER DEFAULT 0,
-    items_scraped INTEGER DEFAULT 0,
+    id                BIGSERIAL PRIMARY KEY,
+    scrape_date       DATE NOT NULL,
+    halls_scraped     INTEGER DEFAULT 0,
+    items_scraped     INTEGER DEFAULT 0,
     nutrition_fetched INTEGER DEFAULT 0,
-    duration_ms   INTEGER DEFAULT 0,
-    status        TEXT DEFAULT 'success',      -- success | partial | failed
-    error_message TEXT,
-    created_at    TIMESTAMPTZ DEFAULT now()
+    duration_ms       INTEGER DEFAULT 0,
+    status            TEXT DEFAULT 'success',
+    error_message     TEXT,
+    created_at        TIMESTAMPTZ DEFAULT now()
 );
+
+-- 6. Check-ins (anon read + validated insert)
+CREATE TABLE IF NOT EXISTS check_ins (
+    id              TEXT PRIMARY KEY,
+    hall_id         TEXT NOT NULL REFERENCES dining_halls(id),
+    hall_name       TEXT NOT NULL,
+    meal_period     TEXT NOT NULL,
+    user_name       TEXT NOT NULL DEFAULT 'Eagle',
+    checked_in_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_ins_user_name_len CHECK (char_length(user_name) BETWEEN 1 AND 40),
+    CONSTRAINT check_ins_id_len CHECK (char_length(id) BETWEEN 8 AND 64),
+    CONSTRAINT check_ins_meal_period CHECK (meal_period IN ('Breakfast', 'Lunch', 'Dinner'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_check_ins_date ON check_ins(checked_in_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_check_ins_daily_unique
+    ON check_ins (hall_id, user_name, checked_in_date);
 
 -- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
 
--- Enable RLS on all tables
-ALTER TABLE dining_halls  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE menu_items    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dining_halls   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE menu_items     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nutrition_info ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app_users     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE scrape_log    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scrape_log     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE check_ins      ENABLE ROW LEVEL SECURITY;
 
--- Public read access for menu data (anon key can read)
-CREATE POLICY "Public read dining_halls"  ON dining_halls  FOR SELECT USING (true);
-CREATE POLICY "Public read menu_items"    ON menu_items    FOR SELECT USING (true);
-CREATE POLICY "Public read nutrition_info" ON nutrition_info FOR SELECT USING (true);
+-- Drop legacy insecure policies (safe if re-running on existing DB)
+DROP POLICY IF EXISTS "Public read dining_halls"   ON dining_halls;
+DROP POLICY IF EXISTS "Public read menu_items"     ON menu_items;
+DROP POLICY IF EXISTS "Public read nutrition_info" ON nutrition_info;
+DROP POLICY IF EXISTS "Service write dining_halls"   ON dining_halls;
+DROP POLICY IF EXISTS "Service write menu_items"     ON menu_items;
+DROP POLICY IF EXISTS "Service write nutrition_info" ON nutrition_info;
+DROP POLICY IF EXISTS "Service write scrape_log"     ON scrape_log;
+DROP POLICY IF EXISTS "Users read own data"          ON app_users;
+DROP POLICY IF EXISTS "Service write app_users"      ON app_users;
+DROP POLICY IF EXISTS "Public read check_ins"        ON check_ins;
+DROP POLICY IF EXISTS "Public insert check_ins"      ON check_ins;
 
--- Only service_role (Lambda) can write menu data
-CREATE POLICY "Service write dining_halls"  ON dining_halls  FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service write menu_items"    ON menu_items    FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service write nutrition_info" ON nutrition_info FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service write scrape_log"    ON scrape_log    FOR ALL USING (true) WITH CHECK (true);
+-- anon + authenticated: read-only menu data
+CREATE POLICY "anon_read_dining_halls"
+    ON dining_halls FOR SELECT TO anon, authenticated USING (true);
 
--- Users can only see their own row
-CREATE POLICY "Users read own data" ON app_users FOR SELECT USING (true);
-CREATE POLICY "Service write app_users" ON app_users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "anon_read_menu_items"
+    ON menu_items FOR SELECT TO anon, authenticated USING (true);
+
+CREATE POLICY "anon_read_nutrition_info"
+    ON nutrition_info FOR SELECT TO anon, authenticated USING (true);
+
+-- anon + authenticated: read check-ins, insert with validation
+CREATE POLICY "anon_read_check_ins"
+    ON check_ins FOR SELECT TO anon, authenticated USING (true);
+
+CREATE POLICY "anon_insert_check_ins"
+    ON check_ins FOR INSERT TO anon, authenticated
+    WITH CHECK (
+        char_length(user_name) BETWEEN 1 AND 40
+        AND char_length(id) BETWEEN 8 AND 64
+        AND meal_period IN ('Breakfast', 'Lunch', 'Dinner')
+        AND checked_in_date = CURRENT_DATE
+        AND hall_id IN (SELECT id FROM dining_halls)
+        AND hall_name = (SELECT name FROM dining_halls WHERE id = hall_id)
+    );
+
+-- app_users + scrape_log: no policies for anon/authenticated → denied by default
+-- service_role bypasses RLS for Lambda writes
 
 -- ============================================================
--- Social: Check-ins (Feature 4)
+-- Maintenance functions (service_role only via RPC)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS check_ins (
-    id          TEXT PRIMARY KEY,
-    hall_id     TEXT NOT NULL REFERENCES dining_halls(id),
-    hall_name   TEXT NOT NULL,
-    meal_period TEXT NOT NULL,
-    user_name   TEXT DEFAULT 'Eagle',
-    checked_in_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    checked_in_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
-ALTER TABLE check_ins ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public read check_ins"
-    ON check_ins FOR SELECT TO anon USING (true);
-
-CREATE POLICY "Public insert check_ins"
-    ON check_ins FOR INSERT TO anon WITH CHECK (true);
-
--- Auto-cleanup: remove check-ins older than 7 days
 CREATE OR REPLACE FUNCTION cleanup_old_checkins()
 RETURNS void AS $$
 BEGIN
     DELETE FROM check_ins WHERE checked_in_date < CURRENT_DATE - INTERVAL '7 days';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- ============================================================
--- Helper: Delete old menu data (keep 7 days)
--- Called by Lambda after each scrape
--- ============================================================
 CREATE OR REPLACE FUNCTION cleanup_old_menus()
 RETURNS void AS $$
 BEGIN
     DELETE FROM menu_items WHERE menu_date < CURRENT_DATE - INTERVAL '7 days';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION cleanup_old_checkins() FROM PUBLIC;
+REVOKE ALL ON FUNCTION cleanup_old_menus() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION cleanup_old_checkins() TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_menus() TO service_role;
