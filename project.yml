@@ -19,6 +19,8 @@ targets:
           - ".claude/**"
           - "EagleEatsWidget/**"
           - "backend/**"
+          - "docs/**"
+          - ".github/**"
           - "Secrets.plist.example"
     info:
       path: Info.plist
