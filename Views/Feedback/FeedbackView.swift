@@ -129,6 +129,7 @@ private struct HallRatingRow: View {
 
 private struct FeedbackEntryRow: View {
     let entry: FeedbackEntry
+    @State private var showReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -177,6 +178,19 @@ private struct FeedbackEntryRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button(role: .destructive) {
+                showReport = true
+            } label: {
+                Label("Report Feedback", systemImage: "flag.fill")
+            }
+        }
+        .sheet(isPresented: $showReport) {
+            ReportContentSheet(
+                contentType: .feedback,
+                contentId: entry.id.uuidString
+            )
+        }
     }
 }
 
@@ -191,6 +205,7 @@ struct SubmitFeedbackView: View {
     @State private var rating: Int = 4
     @State private var selectedTags: Set<FeedbackTag> = []
     @State private var comment: String = ""
+    @State private var filterError: String?
 
     private var selectedHall: DiningHall? {
         DiningHall.sampleHalls.first { $0.id == selectedHallId }
@@ -270,6 +285,17 @@ struct SubmitFeedbackView: View {
                 TextField("What did you think?", text: $comment, axis: .vertical)
                     .lineLimit(2...6)
                     .font(.system(size: 15))
+                if let filterError {
+                    Text(filterError)
+                        .font(.caption)
+                        .foregroundStyle(Color.statusClosed)
+                }
+            }
+
+            Section {
+                Text("Report issues: \(AppSupport.supportEmail)")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
             }
         }
         .navigationTitle("Submit Feedback")
@@ -301,6 +327,12 @@ struct SubmitFeedbackView: View {
     }
 
     private func submitFeedback() {
+        let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, !ContentFilter.isAcceptable(trimmed) {
+            filterError = "Your comment couldn't be posted. Please revise inappropriate language."
+            return
+        }
+        filterError = nil
         let hallName = selectedHall?.name ?? selectedHallId
         let entry = FeedbackEntry(
             hallId: selectedHallId,

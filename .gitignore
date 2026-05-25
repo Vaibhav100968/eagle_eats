@@ -67,3 +67,4 @@ backend/lambda_scraper/.venv/
 
 # Cursor
 .cursor/
+.claude/

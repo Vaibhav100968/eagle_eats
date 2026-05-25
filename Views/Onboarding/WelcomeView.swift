@@ -85,7 +85,7 @@ struct WelcomeView: View {
                 appState.didSignIn()
             }
         } message: {
-            Text("A welcome confirmation has been sent to your UNT email. Enjoy tracking your dining!")
+            Text("You're signed in with your UNT account. Enjoy tracking your dining!")
         }
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.1)) { heroVisible = true }

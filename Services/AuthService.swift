@@ -95,7 +95,7 @@ final class AuthService: ObservableObject {
         displayName = nil
     }
 
-    // MARK: - Welcome Email (mocked)
+    // MARK: - First launch welcome
 
     var isFirstLogin: Bool {
         keychain.load(.welcomeEmailSent) == nil
@@ -103,15 +103,5 @@ final class AuthService: ObservableObject {
 
     func markWelcomeEmailSent() {
         keychain.save("1", for: .welcomeEmailSent)
-    }
-
-    // MARK: - Legacy Stubs (kept so SignInView still compiles)
-
-    func signUp(identifier raw: String, displayName name: String, password: String) throws {
-        throw AuthError.keychainFailure
-    }
-
-    func signIn(identifier raw: String, password: String) throws {
-        throw AuthError.keychainFailure
     }
 }

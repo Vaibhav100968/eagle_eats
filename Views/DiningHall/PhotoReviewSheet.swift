@@ -18,6 +18,7 @@ struct AddPhotoReviewSheet: View {
     @State private var comment: String = ""
     @State private var showCamera = false
     @State private var saving = false
+    @State private var filterError: String?
 
     var body: some View {
         NavigationStack {
@@ -178,6 +179,11 @@ struct AddPhotoReviewSheet: View {
                 .padding(14)
                 .background(Color.surfaceBase)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            if let filterError {
+                Text(filterError)
+                    .font(.caption)
+                    .foregroundStyle(Color.statusClosed)
+            }
         }
     }
 
@@ -186,6 +192,12 @@ struct AddPhotoReviewSheet: View {
     private var submitButton: some View {
         Button {
             guard let image = selectedImage else { return }
+            let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !ContentFilter.isAcceptable(trimmed) {
+                filterError = "Please remove inappropriate language before posting."
+                return
+            }
+            filterError = nil
             saving = true
             reviewService.addReview(
                 menuItemName: menuItemName,
@@ -326,6 +338,7 @@ struct PhotoReviewGallery: View {
 private struct PhotoReviewCard: View {
     let review: PhotoReview
     @StateObject private var reviewService = PhotoReviewService.shared
+    @State private var showReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -357,5 +370,18 @@ private struct PhotoReviewCard: View {
             }
         }
         .frame(width: 140)
+        .contextMenu {
+            Button(role: .destructive) {
+                showReport = true
+            } label: {
+                Label("Report Review", systemImage: "flag.fill")
+            }
+        }
+        .sheet(isPresented: $showReport) {
+            ReportContentSheet(
+                contentType: .photoReview,
+                contentId: review.id
+            )
+        }
     }
 }

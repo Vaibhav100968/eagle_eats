@@ -21,7 +21,6 @@ final class FeedbackService: ObservableObject {
 
     private init() {
         load()
-        if entries.isEmpty { seedDemoData() }
     }
 
     // MARK: - CRUD
@@ -92,78 +91,4 @@ final class FeedbackService: ObservableObject {
         }
     }
 
-    // MARK: - Demo Seed Data
-
-    private func seedDemoData() {
-        let cal = Calendar.current
-        let now = Date()
-
-        func ago(days: Int, hours: Int = 0) -> Date {
-            cal.date(byAdding: .day, value: -days,
-                     to: cal.date(byAdding: .hour, value: -hours, to: now)!)!
-        }
-
-        let seed: [(String, String, String, Int, [FeedbackTag], String, Date)] = [
-            ("bruceteria", "Bruceteria", "Lunch", 5, [.taste, .variety],
-             "The chicken tikka masala station was incredible today. Perfectly spiced.", ago(days: 0, hours: 3)),
-            ("bruceteria", "Bruceteria", "Breakfast", 4, [.quality, .availability],
-             "Omelette station had a long line but the food was worth the wait.", ago(days: 1, hours: 5)),
-            ("bruceteria", "Bruceteria", "Lunch", 4, [.taste, .cleanliness],
-             "Solid lunch options. The salad bar was fresh and well-stocked.", ago(days: 2)),
-            ("bruceteria", "Bruceteria", "Dinner", 3, [.availability],
-             "Some stations closed early before 4 PM.", ago(days: 3)),
-
-            ("mean-greens", "Mean Greens Caf\u{00E9}", "Lunch", 5, [.taste, .quality, .variety],
-             "Best vegan dining hall in the country for a reason. The jackfruit tacos were perfect.", ago(days: 0, hours: 5)),
-            ("mean-greens", "Mean Greens Caf\u{00E9}", "Lunch", 4, [.taste, .cleanliness],
-             "Really clean, food was fresh. The smoothie bar is a nice touch.", ago(days: 1)),
-            ("mean-greens", "Mean Greens Caf\u{00E9}", "Breakfast", 5, [.quality, .variety],
-             "Tofu scramble and the acai bowl were both excellent.", ago(days: 2, hours: 8)),
-            ("mean-greens", "Mean Greens Caf\u{00E9}", "Dinner", 4, [.taste],
-             "The mushroom risotto was really creamy and well-seasoned.", ago(days: 4)),
-
-            ("eagle-landing", "Eagle Landing", "Dinner", 4, [.taste, .service],
-             "Good comfort food. The mac and cheese was great.", ago(days: 0, hours: 2)),
-            ("eagle-landing", "Eagle Landing", "Lunch", 3, [.availability, .quality],
-             "Limited options at 1 PM. Most of the hot food was sitting out.", ago(days: 1, hours: 4)),
-            ("eagle-landing", "Eagle Landing", "Dinner", 5, [.taste, .variety, .service],
-             "Thursday dinner was steak night. Cooked to order, really impressed.", ago(days: 3)),
-
-            ("champs", "Champs", "Lunch", 4, [.quality, .taste],
-             "High-protein options are solid. The grilled chicken was well-seasoned.", ago(days: 1)),
-            ("champs", "Champs", "Breakfast", 4, [.availability, .quality],
-             "Egg white omelettes and protein pancakes available every morning.", ago(days: 2, hours: 9)),
-            ("champs", "Champs", "Dinner", 3, [.variety],
-             "Menu could use more variety. Same rotation most weeks.", ago(days: 5)),
-
-            ("kitchen-west", "Kitchen West", "Lunch", 5, [.quality, .taste, .cleanliness],
-             "Finally a dining hall where I can eat without worrying about allergens.", ago(days: 0, hours: 6)),
-            ("kitchen-west", "Kitchen West", "Lunch", 4, [.taste, .service],
-             "Staff is always helpful explaining ingredients. Food is consistent.", ago(days: 2)),
-            ("kitchen-west", "Kitchen West", "Dinner", 4, [.quality, .availability],
-             "Smaller menu but everything is safe and well-prepared.", ago(days: 4)),
-        ]
-
-        for (hallId, hallName, period, rating, tags, comment, date) in seed {
-            let entry = FeedbackEntry(
-                hallId: hallId, hallName: hallName,
-                mealPeriod: period, rating: rating,
-                tags: tags, comment: comment
-            )
-            // Override the auto-generated date by re-encoding
-            var mutable = entry
-            mutable = FeedbackEntry(
-                hallId: hallId, hallName: hallName,
-                mealPeriod: period, rating: rating,
-                tags: tags, comment: comment
-            )
-            entries.append(mutable)
-        }
-
-        // Sort by the insertion order (newest first based on array position)
-        // Since we can't override dates in the struct, reverse so newest-looking are first
-        entries.reverse()
-        save()
-        rebuildSummaries()
-    }
 }

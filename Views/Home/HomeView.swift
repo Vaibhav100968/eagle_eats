@@ -18,6 +18,8 @@ struct HomeView: View {
     @State private var cardsVisible:      Bool            = false
     @State private var currentTime:       Date            = Date()
     @State private var showMap:           Bool            = false
+    @State private var showLocationExplain = false
+    @AppStorage("eagle_eats_location_explained") private var locationExplained = false
 
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -197,11 +199,23 @@ struct HomeView: View {
                 contextEngine.evaluate()
                 habitEngine.analyze()
             }
-            if locationService.authorizationStatus == .notDetermined {
-                locationService.requestPermission()
-            } else {
+            if locationService.authorizationStatus == .notDetermined, !locationExplained {
+                showLocationExplain = true
+            } else if locationService.authorizationStatus == .authorizedWhenInUse ||
+                        locationService.authorizationStatus == .authorizedAlways {
                 locationService.requestLocation()
             }
+        }
+        .alert("Use Your Location?", isPresented: $showLocationExplain) {
+            Button("Not Now", role: .cancel) {
+                locationExplained = true
+            }
+            Button("Allow") {
+                locationExplained = true
+                locationService.requestPermission()
+            }
+        } message: {
+            Text("Eagle Eats uses your location only to show the nearest UNT dining halls. You can change this anytime in iOS Settings.")
         }
         .onChange(of: locationService.authorizationStatus) { _, status in
             if status == .authorizedWhenInUse || status == .authorizedAlways {

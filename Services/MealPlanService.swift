@@ -37,15 +37,7 @@ final class MealPlanService: ObservableObject {
             return
         }
 
-        // Seed demo data for pitch demo so the tab is never empty
-        let demo = MealPlanInfo(
-            diningSwipes: 47,
-            flexBalance: 382.50,
-            mealPlanName: "Eagle 150 Meal Plan",
-            accountHolder: nil,
-            lastUpdated: Date()
-        )
-        cache(demo)
+        authState = .notAuthenticated
     }
 
     func cache(_ info: MealPlanInfo) {

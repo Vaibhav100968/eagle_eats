@@ -94,7 +94,10 @@ final class SocialService: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             if let rows = try? decoder.decode([SupabaseCheckIn].self, from: data) {
-                recentCheckIns = rows.map { $0.toCheckIn() }
+                let moderation = ContentModerationService.shared
+                recentCheckIns = rows
+                    .map { $0.toCheckIn() }
+                    .filter { !moderation.isBlocked($0.userName) }
             }
         } catch {
             print("[SocialService] Failed to fetch recent check-ins: \(error)")

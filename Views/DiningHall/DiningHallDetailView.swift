@@ -80,7 +80,7 @@ struct DiningHallDetailView: View {
                             .padding(.top, 14)
                     }
 
-                    // MARK: Live Crowd
+                    // MARK: Estimated Crowd
                     if hall.isOpen {
                         LiveCrowdStrip(hallId: hall.id)
                             .padding(.horizontal, 20)

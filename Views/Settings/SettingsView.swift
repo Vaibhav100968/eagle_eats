@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var showExport:            Bool         = false
     @State private var exportJSON:            String       = ""
     @State private var biometricEnabled:      Bool         = false
+    @State private var showDeleteAccountAlert = false
 
     var body: some View {
         NavigationStack {
@@ -199,6 +200,29 @@ struct SettingsView: View {
                         .padding(.horizontal, 20)
                         .staggerIn(visible: appeared, delay: 0.39)
 
+                        // MARK: Legal & Privacy
+                        SettingsSection(title: "Legal & Privacy", icon: "hand.raised.fill") {
+                            NavigationLink {
+                                PrivacyPolicyView()
+                            } label: {
+                                SettingsNavRow(icon: "doc.text.fill", label: "Privacy Policy", color: .untGreenPrimary)
+                            }
+                            Divider().padding(.leading, 54)
+                            SettingsLinkRow(icon: "safari.fill", label: "Privacy Policy (Web)", color: .macroCarbs) {
+                                UIApplication.shared.open(AppSupport.privacyPolicyURL)
+                            }
+                            Divider().padding(.leading, 54)
+                            NavigationLink {
+                                HealthDisclaimerView()
+                            } label: {
+                                SettingsNavRow(icon: "heart.text.square.fill", label: "Health Disclaimer", color: .statusClosed)
+                            }
+                            Divider().padding(.leading, 54)
+                            SettingsInfoRow(icon: "envelope.fill", label: "Support", value: AppSupport.supportEmail, color: .macroCarbs)
+                        }
+                        .padding(.horizontal, 20)
+                        .staggerIn(visible: appeared, delay: 0.395)
+
                         // MARK: About & Support
                         SettingsSection(title: "About", icon: "info.circle.fill") {
                             SettingsLinkRow(icon: "globe", label: "UNT Dining Website", color: .macroCarbs) {
@@ -207,7 +231,15 @@ struct SettingsView: View {
                                 }
                             }
                             Divider().padding(.leading, 54)
-                            SettingsLinkRow(icon: "envelope.fill", label: "Send Feedback", color: .untGreenPrimary) {}
+                            SettingsLinkRow(icon: "envelope.fill", label: "Contact Support", color: .untGreenPrimary) {
+                                UIApplication.shared.open(AppSupport.supportMailto)
+                            }
+                            Divider().padding(.leading, 54)
+                            NavigationLink {
+                                FeedbackView()
+                            } label: {
+                                SettingsNavRow(icon: "text.bubble.fill", label: "Dining Feedback", color: .untGreenPrimary)
+                            }
                             Divider().padding(.leading, 54)
                             SettingsInfoRow(icon: "app.badge.fill", label: "Version", value: "1.0.0", color: .textTertiary)
                         }
@@ -235,6 +267,14 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showExport) {
             AnalyticsExportSheet(json: exportJSON)
+        }
+        .alert("Delete Account?", isPresented: $showDeleteAccountAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                appState.deleteAccount()
+            }
+        } message: {
+            Text("This removes your session, saved meals, reviews, and settings from this device. Server check-ins may take up to 7 days to expire.")
         }
         .onAppear {
             settings = appState.settings
@@ -283,18 +323,27 @@ struct SettingsView: View {
                     }
                 }
                 Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                        appState.signOut()
+                VStack(spacing: 8) {
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            appState.signOut()
+                        }
+                    } label: {
+                        Text("Sign Out")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.statusClosed)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color.statusClosed.opacity(0.1))
+                            .clipShape(Capsule())
                     }
-                } label: {
-                    Text("Sign Out")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.statusClosed)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.statusClosed.opacity(0.1))
-                        .clipShape(Capsule())
+                    Button {
+                        showDeleteAccountAlert = true
+                    } label: {
+                        Text("Delete Account")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.textTertiary)
+                    }
                 }
             }
             .padding(18)

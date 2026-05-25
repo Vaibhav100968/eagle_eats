@@ -90,6 +90,36 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Deletes local account data and returns user to onboarding (Guideline 5.1.1).
+    func deleteAccount() {
+        auth.deleteAccount()
+        MealPlanService.shared.signOut()
+        clearLocalUserData()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            authState = .onboarding
+        }
+    }
+
+    private func clearLocalUserData() {
+        persistence.clearAllMeals()
+        let keys = [
+            "eagle_eats_feedback",
+            "eagle_eats_checkins",
+            "eagle_eats_ratings",
+            "eagle_eats_availability_reports",
+            "eagle_eats_photo_reviews",
+            "eagle_eats_meal_plan_cache",
+            "eagle_eats_content_reports",
+            "eagle_eats_blocked_users",
+        ]
+        for key in keys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        favoriteHallIds = []
+        persistence.save(settings: AppSettings())
+        settings = AppSettings()
+    }
+
     // MARK: - Favorites
 
     func toggleFavorite(hallId: String) {

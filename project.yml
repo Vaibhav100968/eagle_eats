@@ -27,6 +27,9 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
+        NSLocationWhenInUseUsageDescription: "Eagle Eats uses your location to show the nearest UNT dining halls."
+        NSCameraUsageDescription: "Eagle Eats uses the camera so you can add photos to menu item reviews."
+        NSPhotoLibraryUsageDescription: "Eagle Eats accesses your photo library so you can attach photos to menu reviews."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vaibhav08.eaglesEats2

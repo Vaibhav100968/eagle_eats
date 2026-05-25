@@ -30,7 +30,7 @@ struct LiveCrowdStrip: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text("Live Crowd")
+                    Text("Estimated Crowd")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.textPrimary)
 
@@ -46,6 +46,10 @@ struct LiveCrowdStrip: View {
                 Text(snap.prediction)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color.textSecondary)
+
+                Text("Estimate based on typical meal times, not live occupancy sensors.")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.textTertiary)
             }
 
             Spacer()
