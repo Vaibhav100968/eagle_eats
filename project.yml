@@ -17,6 +17,7 @@ targets:
           - "*.xcodeproj/**"
           - ".gitignore"
           - ".claude/**"
+          - ".derivedData/**"
           - "EagleEatsWidget/**"
           - "backend/**"
           - "docs/**"
