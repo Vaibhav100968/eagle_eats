@@ -2,8 +2,7 @@ import SwiftUI
 import WebKit
 
 // MARK: - Auth Gate
-// Every user lands here before entering the app.
-// They MUST authenticate via UNT portal (SSO) — no guest mode.
+// Users can sign in via UNT portal or continue as a guest (tracked separately).
 
 struct WelcomeView: View {
     @EnvironmentObject private var appState: AppState
@@ -47,6 +46,10 @@ struct WelcomeView: View {
                     // MARK: Sign In button
                     signInButton
                         .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+
+                    guestButton
+                        .padding(.horizontal, 20)
                         .padding(.bottom, 20)
 
                     // MARK: Security notice
@@ -55,8 +58,13 @@ struct WelcomeView: View {
                         .padding(.bottom, 32)
 
                     // MARK: Footer
-                    VStack(spacing: 6) {
-                        Text("Built for UNT Students")
+                    VStack(spacing: 10) {
+                        AffiliationDisclaimerView(compact: true)
+                            .padding(.horizontal, 28)
+                            .opacity(buttonsVisible ? 1 : 0)
+
+                        VStack(spacing: 6) {
+                            Text("Built for UNT Students")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.4))
                         Text("Your credentials go directly to UNT's secure portal")
@@ -88,6 +96,7 @@ struct WelcomeView: View {
             Text("You're signed in with your UNT account. Enjoy tracking your dining!")
         }
         .onAppear {
+            EventTrackingService.shared.track("view_welcome")
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.1)) { heroVisible = true }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.35)) { formVisible = true }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.55)) { buttonsVisible = true }
@@ -214,7 +223,10 @@ struct WelcomeView: View {
     // MARK: - Sign In Button
 
     private var signInButton: some View {
-        Button { showPortal = true } label: {
+        Button {
+            EventTrackingService.shared.track("sign_in_started")
+            showPortal = true
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: "globe")
                     .font(.system(size: 20, weight: .semibold))
@@ -238,6 +250,34 @@ struct WelcomeView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: Color.untGreenDark.opacity(0.5), radius: 18, x: 0, y: 8)
+        }
+        .buttonStyle(SpringButtonStyle())
+        .opacity(buttonsVisible ? 1 : 0)
+        .offset(y: buttonsVisible ? 0 : 16)
+    }
+
+    private var guestButton: some View {
+        Button {
+            appState.continueAsGuest()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                Text("Continue as Guest")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundStyle(.white.opacity(0.9))
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(.white.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+            )
         }
         .buttonStyle(SpringButtonStyle())
         .opacity(buttonsVisible ? 1 : 0)

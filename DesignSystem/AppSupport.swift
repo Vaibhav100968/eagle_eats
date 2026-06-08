@@ -8,5 +8,9 @@ enum AppSupport {
     static let supportMailto = URL(string: "mailto:\(supportEmail)")!
     static let privacyPolicyURL = URL(string: "https://vaibhav100968.github.io/eagle_eats/privacy/")!
     static let supportURL = URL(string: "https://vaibhav100968.github.io/eagle_eats/support/")!
-    static let termsURL = privacyPolicyURL
+    static let termsURL = URL(string: "https://vaibhav100968.github.io/eagle_eats/terms/")!
+
+    /// Required for App Store — app is not an official UNT product.
+    static let affiliationDisclaimer =
+        "Mean Eats is an independent student project and is not affiliated with or endorsed by the University of North Texas."
 }

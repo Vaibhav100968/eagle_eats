@@ -229,6 +229,10 @@ struct SettingsView: View {
 
                         // MARK: About & Support
                         SettingsSection(title: "About", icon: "info.circle.fill") {
+                            AffiliationDisclaimerView()
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            Divider().padding(.leading, 54)
                             SettingsLinkRow(icon: "globe", label: "UNT Dining Website", color: .macroCarbs) {
                                 if let url = URL(string: "https://dining.unt.edu") {
                                     UIApplication.shared.open(url)
@@ -294,11 +298,14 @@ struct SettingsView: View {
 
     private var accountCard: some View {
         VStack(spacing: 0) {
+            let isGuest = appState.authState.isGuest
             let displayName: String = {
+                if isGuest { return "Guest" }
                 if case .signedIn(_, let name) = appState.authState { return name ?? "UNT Student" }
                 return "UNT Student"
             }()
             let identifier: String = {
+                if isGuest { return GuestIdentityService.shared.guestId }
                 if case .signedIn(let id, _) = appState.authState { return id }
                 return ""
             }()
@@ -318,10 +325,10 @@ struct SettingsView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.textPrimary)
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.seal.fill")
+                        Image(systemName: isGuest ? "person.crop.circle" : "checkmark.seal.fill")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color.untGreenPrimary)
-                        Text("UNT Authenticated")
+                            .foregroundStyle(isGuest ? Color.textSecondary : Color.untGreenPrimary)
+                        Text(isGuest ? "Guest Mode" : "UNT Authenticated")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.textSecondary)
                     }
@@ -333,7 +340,7 @@ struct SettingsView: View {
                             appState.signOut()
                         }
                     } label: {
-                        Text("Sign Out")
+                        Text(isGuest ? "Leave Guest Mode" : "Sign Out")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.statusClosed)
                             .padding(.horizontal, 14)
@@ -341,12 +348,14 @@ struct SettingsView: View {
                             .background(Color.statusClosed.opacity(0.1))
                             .clipShape(Capsule())
                     }
-                    Button {
-                        showDeleteAccountAlert = true
-                    } label: {
-                        Text("Delete Account")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.textTertiary)
+                    if !isGuest {
+                        Button {
+                            showDeleteAccountAlert = true
+                        } label: {
+                            Text("Delete Account")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.textTertiary)
+                        }
                     }
                 }
             }
