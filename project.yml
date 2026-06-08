@@ -51,6 +51,8 @@ targets:
         embed: true
     entitlements:
       path: eaglesEats2.entitlements
+    resources:
+      - path: PrivacyInfo.xcprivacy
 
   EagleEatsWidget:
     type: app-extension
