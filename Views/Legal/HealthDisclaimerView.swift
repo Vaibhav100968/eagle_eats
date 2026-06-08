@@ -4,9 +4,9 @@ struct HealthDisclaimerView: View {
     var body: some View {
         ScrollView {
             Text("""
-            Nutrition information in Eagle Eats comes from UNT dining menus and labels. Values are estimates and may vary by serving.
+            Nutrition information in Mean Eats comes from UNT dining menus and labels. Values are estimates and may vary by serving.
 
-            Eagle Eats is for informational purposes only. It is not medical advice and is not intended to diagnose, treat, or prevent any condition. Talk to a healthcare professional before making medical or dietary decisions.
+            Mean Eats is for informational purposes only. It is not medical advice and is not intended to diagnose, treat, or prevent any condition. Talk to a healthcare professional before making medical or dietary decisions.
             """)
             .font(.system(size: 14))
             .foregroundStyle(Color.textSecondary)

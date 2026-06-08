@@ -48,6 +48,13 @@ DIETARY_TAGS = {
     "Halal":      {"id": "halal",      "label": "Halal",      "color": "F59E0B", "icon": "checkmark.circle.fill"},
 }
 
+# Placeholder rows UNT leaves on closed-hall pages — never store these.
+JUNK_ITEM_NAMES = frozenset({
+    "menu item #1",
+    "menu item #2",
+    "line not available",
+})
+
 # ---------------------------------------------------------------------------
 # Supabase REST API (no SDK needed)
 # ---------------------------------------------------------------------------
@@ -88,6 +95,15 @@ class SupabaseREST:
         """Call a Postgres function via Supabase RPC."""
         endpoint = f"{self.url}/rest/v1/rpc/{function_name}"
         resp = requests.post(endpoint, headers=self.headers, json={}, timeout=15)
+        return resp
+
+    def delete(self, table: str, query: str):
+        """Delete rows matching query parameters."""
+        endpoint = f"{self.url}/rest/v1/{table}?{query}"
+        headers = {**self.headers, "Prefer": "return=minimal"}
+        resp = requests.delete(endpoint, headers=headers, timeout=30)
+        if resp.status_code not in (200, 204):
+            logger.error(f"Supabase delete {table} failed: {resp.status_code} {resp.text[:200]}")
         return resp
 
 # ---------------------------------------------------------------------------
@@ -156,12 +172,16 @@ def scrape_menu_page(hall: dict, date_str: str) -> list[dict]:
 
     # Build tab → meal period mapping
     tab_map = {}
+    # Tabs may list data-toggle before or after href depending on breakpoint markup.
     tab_pattern = re.compile(
-        r'href="#([A-Za-z0-9_-]+)"[^>]*data-toggle="tab"[^>]*>\s*([^<]+?)\s*<'
+        r'<a[^>]+href="#([A-Za-z0-9_-]+)"[^>]*data-toggle="tab"[^>]*>\s*([^<]+?)\s*</a>'
+        r'|<a[^>]+data-toggle="tab"[^>]+href="#([A-Za-z0-9_-]+)"[^>]*>\s*([^<]+?)\s*</a>'
     )
     for match in tab_pattern.finditer(html):
-        div_id = match.group(1)
-        label = match.group(2).strip()
+        div_id = match.group(1) or match.group(3)
+        label = (match.group(2) or match.group(4) or "").strip()
+        if not div_id or not label:
+            continue
         period = parse_meal_period(label)
         if period:
             tab_map[div_id] = period
@@ -169,11 +189,15 @@ def scrape_menu_page(hall: dict, date_str: str) -> list[dict]:
 
     # Split into tab panes
     pane_pattern = re.compile(
-        r'<div[^>]+class="tab-pane[^"]*"[^>]+id="([^"]+)"'
+        r'<div[^>]+class="[^"]*tab-pane[^"]*"[^>]+id="([^"]+)"'
+        r'|<div[^>]+id="([^"]+)"[^>]+class="[^"]*tab-pane[^"]*"'
     )
     pane_matches = list(pane_pattern.finditer(html))
 
-    if not pane_matches or all(m.group(1) not in tab_map for m in pane_matches):
+    if not pane_matches or all((m.group(1) or m.group(2)) not in tab_map for m in pane_matches):
+        if "empty-message" in html or "is closed for this meal service" in html:
+            logger.info(f"  Hall appears closed (no menus) for {hall['id']}")
+            return []
         logger.info(f"  No tab panes — full-page fallback for {hall['id']}")
         page_items = parse_panel_items(html, hall["id"], "Lunch")
         for item in page_items:
@@ -183,13 +207,15 @@ def scrape_menu_page(hall: dict, date_str: str) -> list[dict]:
         return items
 
     for i, pane_match in enumerate(pane_matches):
-        div_id = pane_match.group(1)
+        div_id = pane_match.group(1) or pane_match.group(2)
         period = tab_map.get(div_id)
         if not period:
             continue
         start = pane_match.start()
         end = pane_matches[i + 1].start() if i + 1 < len(pane_matches) else len(html)
         pane_html = html[start:end]
+        if "empty-message" in pane_html or "is closed for this meal service" in pane_html:
+            continue
 
         pane_items = parse_panel_items(pane_html, hall["id"], period)
         for item in pane_items:
@@ -210,7 +236,8 @@ def parse_panel_items(html: str, hall_id: str, period: str) -> list[dict]:
     items = []
     item_pattern = re.compile(
         r'<li\s+id="(\d+)"\s+class="list-group-item\s+borderless\s+food-item([^"]*)"\s*>'
-        r'([^<]+)</li>'
+        r'\s*([^<]+?)\s*</li>',
+        re.IGNORECASE,
     )
     panel_splits = html.split('class="panel panel-default panel-menu"')
 
@@ -223,8 +250,10 @@ def parse_panel_items(html: str, hall_id: str, period: str) -> list[dict]:
         for m in item_pattern.finditer(panel_chunk):
             recipe_id = m.group(1)
             tags_str = m.group(2)
-            name = m.group(3).strip()
-            if not name:
+            name = re.sub(r"\s+", " ", m.group(3).strip())
+            if not name or name.lower() in JUNK_ITEM_NAMES:
+                continue
+            if not recipe_id.isdigit():
                 continue
 
             item_id = f"{hall_id}-{recipe_id}"
@@ -305,13 +334,18 @@ def scrape_nutrition(recipe_id: str) -> dict | None:
         "sugar": extract_value("Sugars"),
         "sodium": extract_value("Sodium"),
         "serving_size": serving_match.group(1).strip() if serving_match else None,
-        "allergens": "{" + ",".join(allergens) + "}",  # Postgres array literal
+        "allergens": allergens,
         "ingredients": ingredients_text,
     }
 
 # ---------------------------------------------------------------------------
 # Supabase Writers
 # ---------------------------------------------------------------------------
+
+def clear_hall_menu(sb: SupabaseREST, hall_id: str, menu_date: str):
+    """Remove today's rows for a hall so stale items don't linger when closed."""
+    sb.delete("menu_items", f"hall_id=eq.{hall_id}&menu_date=eq.{menu_date}")
+
 
 def write_menu_items(sb: SupabaseREST, items: list[dict], menu_date: str):
     """Upsert menu items for today into Supabase."""
@@ -385,19 +419,23 @@ def lambda_handler(event, context):
     all_items = []
     halls_scraped = 0
 
-    # 1. Scrape all 5 halls
+    # 1. Scrape all 5 halls (clear each hall's rows first so closed halls don't show old data)
+    hall_item_counts: dict[str, int] = {}
     for hall in HALLS:
         try:
+            clear_hall_menu(sb, hall["id"], date_str_iso)
             items = scrape_menu_page(hall, date_str_for_unt)
+            hall_item_counts[hall["id"]] = len(items)
             all_items.extend(items)
             halls_scraped += 1
+            write_menu_items(sb, items, date_str_iso)
         except Exception as e:
             logger.error(f"Error scraping {hall['id']}: {e}")
 
-    logger.info(f"Total menu items scraped: {len(all_items)} from {halls_scraped} halls")
-
-    # 2. Write menu items to Supabase
-    write_menu_items(sb, all_items, date_str_iso)
+    logger.info(
+        f"Total menu items scraped: {len(all_items)} from {halls_scraped} halls "
+        f"({hall_item_counts})"
+    )
 
     # 3. Collect unique recipe IDs that need nutrition data
     unique_recipe_ids = list({item["recipe_id"] for item in all_items})
@@ -466,9 +504,17 @@ def lambda_handler(event, context):
     return result
 
 
-# For local testing
+# For local testing: python3 scraper.py  (loads .env from this directory)
 if __name__ == "__main__":
-    os.environ.setdefault("SUPABASE_URL", "")
-    os.environ.setdefault("SUPABASE_SERVICE_KEY", "")
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.isfile(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
+        raise SystemExit("Set SUPABASE_URL and SUPABASE_SERVICE_KEY in lambda_scraper/.env")
     result = lambda_handler({}, None)
     print(json.dumps(result, indent=2))

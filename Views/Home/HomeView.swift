@@ -24,7 +24,7 @@ struct HomeView: View {
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private var currentPeriod: MealPeriod { MealPeriod.current(for: currentTime) }
-    private var openHalls:  [DiningHall]  { diningService.halls.filter { $0.isOpen } }
+    private var openHalls:  [DiningHall]  { diningService.halls.filter { diningService.isHallOpen($0) } }
     private var favoriteHalls: [DiningHall] {
         diningService.halls.filter { appState.isFavorite($0.id) }
     }
@@ -113,7 +113,7 @@ struct HomeView: View {
                         allHallsSection
                             .padding(.bottom, 30)
 
-                        // MARK: Dining Dollars Locations
+                        // MARK: Where to Spend
                         diningDollarsSection
                             .padding(.bottom, 24)
 
@@ -215,7 +215,7 @@ struct HomeView: View {
                 locationService.requestPermission()
             }
         } message: {
-            Text("Eagle Eats uses your location only to show the nearest UNT dining halls. You can change this anytime in iOS Settings.")
+            Text("Mean Eats uses your location only to show the nearest UNT dining halls. You can change this anytime in iOS Settings.")
         }
         .onChange(of: locationService.authorizationStatus) { _, status in
             if status == .authorizedWhenInUse || status == .authorizedAlways {
@@ -364,12 +364,12 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Dining Dollars Section
+    // MARK: - Where to Spend Section
 
     private var diningDollarsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                SectionHeader(title: "Dining Dollars", icon: "creditcard.fill", iconColor: Color(hex: "8B5CF6"))
+                SectionHeader(title: "Where to Spend", icon: "mappin.and.ellipse", iconColor: Color(hex: "8B5CF6"))
                     .padding(.horizontal, 22)
                 Spacer()
                 NavigationLink {
@@ -384,7 +384,7 @@ struct HomeView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(RetailLocation.allLocations.prefix(6)) { loc in
+                    ForEach(RetailLocation.allLocations) { loc in
                         RetailChip(location: loc)
                     }
                 }
@@ -436,7 +436,7 @@ struct HomeView: View {
         case .breakfast: return "Good Morning"
         case .lunch:     return "Good Afternoon"
         case .dinner:    return "Good Evening"
-        default:         return "Eagle Eats"
+        default:         return "Mean Eats"
         }
     }
 
@@ -718,6 +718,7 @@ import MapKit
 
 struct CampusMapView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var diningService: DiningService
     @StateObject private var locationService = LocationService.shared
 
     @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
@@ -755,7 +756,7 @@ struct CampusMapView: View {
                             }
                         }
                     }
-                    ForEach(RetailLocation.allLocations) { loc in
+                    ForEach(RetailLocation.mapLocations) { loc in
                         Annotation(loc.name, coordinate: loc.coordinate) {
                             Button {
                                 HapticService.shared.light()
@@ -789,7 +790,14 @@ struct CampusMapView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(DiningHall.sampleHalls) { hall in
-                            MapHallChip(hall: hall, locationService: locationService)
+                            MapHallChip(
+                                hall: hall,
+                                locationService: locationService,
+                                isOpen: diningService.isHallOpen(hall)
+                            )
+                        }
+                        ForEach(RetailLocation.mapLocations) { loc in
+                            MapRetailChip(location: loc, locationService: locationService)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -812,6 +820,7 @@ struct CampusMapView: View {
 private struct MapHallChip: View {
     let hall: DiningHall
     let locationService: LocationService
+    let isOpen: Bool
 
     private var distanceText: String? {
         guard let meters = locationService.distance(to: hall) else { return nil }
@@ -843,13 +852,69 @@ private struct MapHallChip: View {
                             Text(dist)
                                 .font(.system(size: 11, weight: .medium))
                         }
-                        if hall.isOpen {
-                            Text(hall.isOpen ? "Open" : "Closed")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(hall.isOpen ? Color.statusOpen : Color.statusClosed)
-                        }
+                        Text(isOpen ? "Open" : "Closed")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(isOpen ? Color.statusOpen : Color.statusClosed)
                     }
                     .foregroundStyle(Color.textSecondary)
+                }
+                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.macroCarbs)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.surfaceBase)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+private struct MapRetailChip: View {
+    let location: RetailLocation
+    let locationService: LocationService
+
+    private var distanceText: String? {
+        guard let loc = locationService.currentLocation else { return nil }
+        let user = CLLocation(latitude: loc.latitude, longitude: loc.longitude)
+        let dest = CLLocation(latitude: location.latitude, longitude: location.longitude)
+        return MapService.formattedDistance(meters: user.distance(from: dest))
+    }
+
+    var body: some View {
+        Button {
+            HapticService.shared.light()
+            let placemark = MKPlacemark(coordinate: location.coordinate)
+            let item = MKMapItem(placemark: placemark)
+            item.name = location.name
+            item.openInMaps(launchOptions: [
+                MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
+            ])
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: location.category.tint))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: location.iconName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(location.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.textPrimary)
+                    if let dist = distanceText {
+                        HStack(spacing: 4) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 9))
+                            Text(dist)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(Color.textSecondary)
+                    }
                 }
                 Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
                     .font(.system(size: 13))

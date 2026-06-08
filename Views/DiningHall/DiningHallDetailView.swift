@@ -81,7 +81,7 @@ struct DiningHallDetailView: View {
                     }
 
                     // MARK: Estimated Crowd
-                    if hall.isOpen {
+                    if diningService.isHallOpen(hall) {
                         LiveCrowdStrip(hallId: hall.id)
                             .padding(.horizontal, 20)
                             .padding(.top, 14)
@@ -244,7 +244,7 @@ struct DiningHallDetailView: View {
                 }
 
                 HStack(spacing: 10) {
-                    OpenClosedBadge(isOpen: hall.isOpen, period: hall.currentMealPeriod)
+                    OpenClosedBadge(isOpen: diningService.isHallOpen(hall), period: hall.currentMealPeriod)
                     Text(hall.location)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.65))

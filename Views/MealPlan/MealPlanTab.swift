@@ -371,7 +371,7 @@ struct MealPlanTab: View {
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            ForEach(RetailLocation.allLocations.prefix(8)) { loc in
+                            ForEach(RetailLocation.allLocations) { loc in
                                 MealPlanRetailChip(location: loc)
                             }
                         }

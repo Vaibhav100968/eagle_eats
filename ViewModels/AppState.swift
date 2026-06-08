@@ -283,4 +283,13 @@ final class HistoryViewModel: ObservableObject {
         }
         return streak
     }
+
+    var todaysMeals: [SavedMeal] {
+        meals.filter { Calendar.current.isDateInToday($0.date) }
+    }
+
+    var todayCalories: Double { todaysMeals.reduce(0) { $0 + $1.totalCalories } }
+    var todayProtein: Double  { todaysMeals.reduce(0) { $0 + $1.totalProtein } }
+    var todayCarbs: Double    { todaysMeals.reduce(0) { $0 + $1.totalCarbs } }
+    var todayFat: Double        { todaysMeals.reduce(0) { $0 + $1.totalFat } }
 }

@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Mean Eats</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -18,12 +20,12 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Eagle Eats uses your location to show the nearest UNT dining halls.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Eagle Eats uses the camera so you can add photos to menu item reviews.</string>
+	<string>Mean Eats uses the camera so you can add photos to menu item reviews.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Mean Eats uses your location to show the nearest UNT dining halls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Eagle Eats accesses your photo library so you can attach photos to menu reviews.</string>
+	<string>Mean Eats accesses your photo library so you can attach photos to menu reviews.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiresFullScreen</key>

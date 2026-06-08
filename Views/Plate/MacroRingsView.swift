@@ -131,6 +131,104 @@ struct MacroRingsRow: View {
     }
 }
 
+// MARK: - Daily Intake Header (My Plate tab)
+
+struct DailyIntakeHeader: View {
+    let calories: Double
+    let protein: Double
+    let carbs: Double
+    let fat: Double
+    let savedCalories: Double
+    let plateCalories: Double
+    let settings: AppSettings
+
+    private var calorieProgress: Double {
+        guard settings.dailyCalorieGoal > 0 else { return 0 }
+        return min(calories / settings.dailyCalorieGoal, 1.0)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 6) {
+                Text("Today's Intake")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.textSecondary)
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(Int(calories))")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.textPrimary)
+                        .contentTransition(.numericText())
+                    Text("kcal")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                if plateCalories > 0 {
+                    Text("\(Int(savedCalories)) saved · +\(Int(plateCalories)) on your plate")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.untGreenPrimary)
+                } else if settings.dailyCalorieGoal > 0 {
+                    Text("\(Int(max(settings.dailyCalorieGoal - calories, 0))) kcal remaining")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.textTertiary)
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.macroCalories.opacity(0.15))
+                            .frame(height: 6)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.macroCalories)
+                            .frame(width: geo.size.width * calorieProgress, height: 6)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: calorieProgress)
+                    }
+                }
+                .frame(height: 6)
+                .padding(.horizontal, 8)
+            }
+
+            HStack(spacing: 0) {
+                MacroRing(
+                    value: protein,
+                    goal: settings.dailyProteinGoal,
+                    label: "Protein",
+                    unit: "g",
+                    color: .macroProtein,
+                    size: 68,
+                    lineWidth: 7
+                )
+                Spacer()
+                MacroRing(
+                    value: carbs,
+                    goal: settings.dailyCarbGoal,
+                    label: "Carbs",
+                    unit: "g",
+                    color: .macroCarbs,
+                    size: 68,
+                    lineWidth: 7
+                )
+                Spacer()
+                MacroRing(
+                    value: fat,
+                    goal: settings.dailyFatGoal,
+                    label: "Fat",
+                    unit: "g",
+                    color: .macroFat,
+                    size: 68,
+                    lineWidth: 7
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 20)
+        .background(Color.surfaceBase)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 6)
+    }
+}
+
 // MARK: - Compact Macro Bar (for FAB/summary)
 
 struct CompactMacroBar: View {

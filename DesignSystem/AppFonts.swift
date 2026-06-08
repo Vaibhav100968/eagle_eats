@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Eagle Eats Typography System
+// MARK: - Mean Eats Typography System
 // Uses SF Pro with Rounded design variant for warmth + premium feel
 
 extension Font {

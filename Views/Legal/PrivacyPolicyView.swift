@@ -9,7 +9,7 @@ struct PrivacyPolicyView: View {
                 Group {
                     sectionTitle("Overview")
                     bodyText("""
-                    Eagle Eats helps UNT students browse dining hall menus, track nutrition, and manage meal plan information. This policy describes what data we collect, how we use it, and your choices.
+                    Mean Eats helps UNT students browse dining hall menus, track nutrition, and manage meal plan information. This policy describes what data we collect, how we use it, and your choices.
                     """)
 
                     sectionTitle("Data We Collect")
@@ -37,7 +37,7 @@ struct PrivacyPolicyView: View {
 
                     sectionTitle("Children")
                     bodyText("""
-                    Eagle Eats is intended for UNT students and is not directed at children under 13. We do not knowingly collect data from children.
+                    Mean Eats is intended for UNT students and is not directed at children under 13. We do not knowingly collect data from children.
                     """)
 
                     sectionTitle("Contact")

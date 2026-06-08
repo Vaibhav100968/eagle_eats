@@ -62,7 +62,7 @@ struct RetailLocationsView: View {
         }
         .listStyle(.insetGrouped)
         .searchable(text: $searchText, prompt: "Search locations")
-        .navigationTitle("Dining Dollars")
+        .navigationTitle("Where to Spend")
         .navigationBarTitleDisplayMode(.large)
     }
 }

@@ -77,7 +77,7 @@ struct MenuTrendsView: View {
                 emptyState(
                     icon: "crystal.ball",
                     title: "No Predictions Yet",
-                    message: "Keep using Eagle Eats daily — after a few days, we'll start predicting tomorrow's menu based on patterns."
+                    message: "Keep using Mean Eats daily — after a few days, we'll start predicting tomorrow's menu based on patterns."
                 )
             } else {
                 // Group by hall

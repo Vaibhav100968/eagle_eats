@@ -71,6 +71,15 @@ final class DiningService: ObservableObject {
 
     // MARK: - Public API
 
+    /// Open for display: within hours AND has scraped menu data for today (when known).
+    func isHallOpen(_ hall: DiningHall) -> Bool {
+        guard hall.isOpen else { return false }
+        if lastUpdated != nil || !menusByHall.isEmpty {
+            return !(menusByHall[hall.id] ?? []).isEmpty
+        }
+        return true
+    }
+
     /// Fetch today's menus for all halls from Supabase.
     func fetchAllMenus() async {
         isLoading = true
@@ -289,43 +298,6 @@ final class DiningService: ObservableObject {
     // MARK: - Widget Data
 
     private func updateWidgetData() {
-        guard let defaults = UserDefaults(suiteName: "group.com.eagleeats.shared") else { return }
-
-        let period = MealPeriod.current()
-
-        // Flatten top menu items across all halls for the current meal period
-        var widgetItems: [WidgetMenuItem] = []
-        for hall in halls {
-            let items = menuItems(for: hall, period: period)
-            for item in items.prefix(3) {
-                widgetItems.append(WidgetMenuItem(
-                    id: item.id,
-                    name: item.name,
-                    hallName: hall.name,
-                    calories: Int(item.nutrition.calories),
-                    station: item.station
-                ))
-            }
-        }
-
-        let hallStatuses = halls.map { hall in
-            WidgetHallStatus(
-                id: hall.id,
-                name: hall.name,
-                isOpen: hall.isOpen,
-                mealPeriod: hall.currentMealPeriod.rawValue
-            )
-        }
-
-        let encoder = JSONEncoder()
-        if let data = try? encoder.encode(Array(widgetItems.prefix(8))) {
-            defaults.set(data, forKey: "widget_menu_items")
-        }
-        if let data = try? encoder.encode(hallStatuses) {
-            defaults.set(data, forKey: "widget_hall_statuses")
-        }
-        defaults.set(period.rawValue, forKey: "widget_meal_period")
-
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -344,11 +316,18 @@ final class DiningService: ObservableObject {
 
     private func loadFromCache() {
         let decoder = JSONDecoder()
+        let today = isoDateString(effectiveMenuDate)
+        let cachedDate = UserDefaults.standard.string(forKey: cacheDateKey) ?? ""
+        guard cachedDate == today else {
+            if !cachedDate.isEmpty {
+                print("[DiningService] Ignoring stale cache from \(cachedDate)")
+            }
+            return
+        }
         if let data = UserDefaults.standard.data(forKey: cacheKey),
            let cached = try? decoder.decode([String: [MenuItem]].self, from: data) {
             menusByHall = cached
-            let dateStr = UserDefaults.standard.string(forKey: cacheDateKey) ?? ""
-            print("[DiningService] Cache loaded (\(dateStr))")
+            print("[DiningService] Cache loaded (\(cachedDate))")
         }
         if let nData = UserDefaults.standard.data(forKey: nutritionCacheKey),
            let cached = try? decoder.decode([String: NutritionInfo].self, from: nData) {

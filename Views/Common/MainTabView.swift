@@ -192,15 +192,29 @@ private struct PlateTabView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.untGreenBackground.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    DailyIntakeHeader(
+                        calories: historyVM.todayCalories + plateVM.plate.totalCalories,
+                        protein: historyVM.todayProtein + plateVM.plate.totalProtein,
+                        carbs: historyVM.todayCarbs + plateVM.plate.totalCarbs,
+                        fat: historyVM.todayFat + plateVM.plate.totalFat,
+                        savedCalories: historyVM.todayCalories,
+                        plateCalories: plateVM.plate.totalCalories,
+                        settings: appState.settings
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
 
-                if plateVM.plate.isEmpty {
-                    emptyState
-                } else {
-                    PlateBuilderContent(historyVM: historyVM)
+                    if plateVM.plate.isEmpty {
+                        emptyState
+                    } else {
+                        PlateBuilderContent(historyVM: historyVM)
+                    }
                 }
+                .padding(.bottom, 90)
             }
+            .background(Color.untGreenBackground.ignoresSafeArea())
             .navigationTitle("My Plate")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -225,25 +239,27 @@ private struct PlateTabView: View {
                         }
                 }
             }
+            .onAppear { historyVM.load() }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             ZStack {
-                Circle().fill(Color.untGreenPale).frame(width: 100, height: 100)
+                Circle().fill(Color.untGreenPale).frame(width: 88, height: 88)
                 Image(systemName: "fork.knife")
-                    .font(.system(size: 42, weight: .light)).foregroundStyle(Color.untGreenMint)
+                    .font(.system(size: 36, weight: .light)).foregroundStyle(Color.untGreenMint)
             }
             VStack(spacing: 8) {
-                Text("Your plate is empty")
-                    .font(.headingMedium).foregroundStyle(Color.textPrimary)
-                Text("Browse a dining hall and add items to start building your plate and tracking macros")
+                Text("Nothing on your plate yet")
+                    .font(.headingSmall).foregroundStyle(Color.textPrimary)
+                Text("Browse a dining hall and add items to build your next meal")
                     .font(.bodyMedium).foregroundStyle(Color.textSecondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, 40)
+                    .multilineTextAlignment(.center).padding(.horizontal, 32)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 
@@ -268,28 +284,35 @@ private struct PlateBuilderContent: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                MacroRingsRow(plate: plateVM.plate, settings: appState.settings)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
+        VStack(spacing: 20) {
+            if !plateVM.plate.isEmpty {
+                HStack {
+                    Text("On Your Plate")
+                        .font(.headingSmall)
+                        .foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    Text("\(plateVM.plate.itemCount) items • \(Int(plateVM.plate.totalCalories)) kcal")
+                        .font(.labelSmall)
+                        .foregroundStyle(Color.textTertiary)
+                }
+                .padding(.horizontal, 20)
+            }
 
-                // Smart plate advice
-                SmartPlateAdvice(
+            SmartPlateAdvice(
                     plate: plateVM.plate,
                     settings: appState.settings,
                     suggestions: plateSuggestions
                 )
                 .padding(.horizontal, 20)
 
-                HStack(spacing: 12) {
+            HStack(spacing: 12) {
                     SecondaryMacroChip(label: "Fiber",  value: Int(plateVM.plate.totalFiber),  unit: "g",  color: .macroFiber)
                     SecondaryMacroChip(label: "Sodium", value: Int(plateVM.plate.totalSodium), unit: "mg", color: .textSecondary)
                     SecondaryMacroChip(label: "Items",  value: plateVM.plate.itemCount,        unit: "",   color: .untGreenPrimary)
                 }
                 .padding(.horizontal, 20)
 
-                ForEach(Array(plateVM.plate.items.enumerated()), id: \.element.id) { index, pItem in
+            ForEach(Array(plateVM.plate.items.enumerated()), id: \.element.id) { index, pItem in
                     PlateItemRow(plateItem: pItem, plateVM: plateVM)
                         .padding(.horizontal, 20)
                         .opacity(listVisible ? 1 : 0)
@@ -297,7 +320,7 @@ private struct PlateBuilderContent: View {
                         .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(Double(index) * 0.05), value: listVisible)
                 }
 
-                Button {
+            Button {
                     saving = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         savedMeal = plateVM.saveMeal(persistence: PersistenceService.shared)
@@ -326,10 +349,6 @@ private struct PlateBuilderContent: View {
                 }
                 .buttonStyle(SpringButtonStyle())
                 .disabled(saving)
-
-                Spacer().frame(height: 90)
-            }
-            .padding(.vertical, 16)
         }
         .alert("Meal Saved!", isPresented: $savedAlert) {
             Button("Rate this meal") { showOutcomeSheet = true }

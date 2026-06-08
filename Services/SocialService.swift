@@ -138,7 +138,7 @@ final class SocialService: ObservableObject {
         }
         let totalCal = items.reduce(0) { $0 + Int($1.calories) }
         text += "\nTotal: \(totalCal) cal"
-        text += "\n\n— via Eagle Eats"
+        text += "\n\n— via Mean Eats"
         return text
     }
 

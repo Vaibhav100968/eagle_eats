@@ -1,10 +1,6 @@
 import WidgetKit
 import SwiftUI
 
-// MARK: - Shared Data Keys (App Group)
-
-private let appGroupId = "group.com.eagleeats.shared"
-
 // MARK: - Widget Entry
 
 struct DiningWidgetEntry: TimelineEntry {
@@ -48,42 +44,14 @@ struct DiningWidgetProvider: TimelineProvider {
     }
 
     private func loadEntry() -> DiningWidgetEntry {
-        let defaults = UserDefaults(suiteName: appGroupId)
-
-        var menuItems: [WidgetMenuItem] = []
-        if let data = defaults?.data(forKey: "widget_menu_items"),
-           let items = try? JSONDecoder().decode([WidgetMenuItem].self, from: data) {
-            menuItems = items
-        }
-
-        var hallStatuses: [WidgetHallStatus] = []
-        if let data = defaults?.data(forKey: "widget_hall_statuses"),
-           let statuses = try? JSONDecoder().decode([WidgetHallStatus].self, from: data) {
-            hallStatuses = statuses
-        }
-
-        let mealPeriod = defaults?.string(forKey: "widget_meal_period") ?? currentMealPeriod()
-        let flexBalance = defaults?.double(forKey: "flex_balance") ?? 0
-        let dailyBudget = defaults?.double(forKey: "daily_budget") ?? 0
-
-        return DiningWidgetEntry(
+        DiningWidgetEntry(
             date: Date(),
-            mealPeriod: mealPeriod,
-            menuItems: menuItems,
-            hallStatuses: hallStatuses,
-            flexBalance: flexBalance,
-            dailyBudget: dailyBudget
+            mealPeriod: WidgetSnapshot.mealPeriod(),
+            menuItems: [],
+            hallStatuses: WidgetSnapshot.hallStatuses(),
+            flexBalance: 0,
+            dailyBudget: 0
         )
-    }
-
-    private func currentMealPeriod() -> String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 7..<10:  return "Breakfast"
-        case 10..<14: return "Lunch"
-        case 14..<21: return "Dinner"
-        default:      return "Closed"
-        }
     }
 }
 
@@ -116,7 +84,7 @@ struct TodayMenuWidgetView: View {
             }
 
             if entry.menuItems.isEmpty {
-                Text("No menu data")
+                Text("Open Mean Eats for live menus")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             } else {
@@ -157,7 +125,7 @@ struct TodayMenuWidgetView: View {
                 }
 
                 if entry.menuItems.isEmpty {
-                    Text("No menu data available")
+                    Text("Open Mean Eats for live menus")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 } else {

@@ -10,6 +10,7 @@ struct DiningHallCard: View {
     var onSelect:  (() -> Void)? = nil
 
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var diningService: DiningService
     @StateObject private var crowdFlow = CrowdFlowService.shared
     @StateObject private var locationService = LocationService.shared
 
@@ -17,6 +18,8 @@ struct DiningHallCard: View {
         guard let meters = locationService.distance(to: hall) else { return nil }
         return MapService.formattedDistance(meters: meters)
     }
+
+    private var isOpenNow: Bool { diningService.isHallOpen(hall) }
 
     var body: some View {
         if isCompact {
@@ -87,12 +90,12 @@ struct DiningHallCard: View {
                             HStack(spacing: 5) {
                                 Image(systemName: "clock.fill")
                                     .font(.system(size: 11))
-                                Text(hall.isOpen ? todayHoursDisplay : "Closed Today")
+                                Text(isOpenNow ? todayHoursDisplay : "Closed Today")
                                     .font(.system(size: 12, weight: .medium))
                             }
                             .foregroundStyle(.white.opacity(0.7))
 
-                            if hall.isOpen {
+                            if isOpenNow {
                                 let snap = crowdFlow.snapshot(for: hall.id)
                                 HStack(spacing: 5) {
                                     Image(systemName: snap.level.icon)
@@ -139,7 +142,7 @@ struct DiningHallCard: View {
 
                     VStack(alignment: .trailing, spacing: 10) {
                         FavoriteButton(hallId: hall.id)
-                        OpenClosedBadge(isOpen: hall.isOpen, period: hall.currentMealPeriod)
+                        OpenClosedBadge(isOpen: isOpenNow, period: hall.currentMealPeriod)
                         Image(systemName: hall.iconName)
                             .font(.system(size: 36, weight: .light))
                             .foregroundStyle(.white.opacity(0.3))
@@ -172,7 +175,7 @@ struct DiningHallCard: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Spacer()
-                    OpenClosedBadge(isOpen: hall.isOpen, period: hall.currentMealPeriod)
+                    OpenClosedBadge(isOpen: isOpenNow, period: hall.currentMealPeriod)
                     Text(hall.name)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)

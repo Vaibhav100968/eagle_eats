@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - UNT Eagle Eats Design System Colors
+// MARK: - UNT Mean Eats Design System Colors
 // Adaptive colors that work in both light and dark mode.
 
 extension Color {

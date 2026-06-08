@@ -50,7 +50,7 @@ private struct SplashView: View {
                     .font(.system(size: 72, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.95))
                     .scaleEffect(scale)
-                Text("Eagle Eats")
+                Text("Mean Eats")
                     .font(.displayMedium)
                     .foregroundStyle(.white)
                     .opacity(opacity)

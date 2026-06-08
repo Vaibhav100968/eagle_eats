@@ -79,7 +79,7 @@ struct WelcomeView: View {
                 onSessionExpired: handleSessionExpired
             )
         }
-        .alert("Welcome to Eagle Eats!", isPresented: $showWelcomeEmail) {
+        .alert("Welcome to Mean Eats!", isPresented: $showWelcomeEmail) {
             Button("Let's Go!") {
                 appState.auth.markWelcomeEmailSent()
                 appState.didSignIn()
@@ -151,7 +151,7 @@ struct WelcomeView: View {
             }
 
             VStack(spacing: 6) {
-                Text("Eagle Eats")
+                Text("Mean Eats")
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .letterSpacing(-0.5)
@@ -251,7 +251,7 @@ struct WelcomeView: View {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 16))
                 .foregroundStyle(.white.opacity(0.6))
-            Text("Eagle Eats never stores your UNT password. You sign in directly on UNT's secure portal.")
+            Text("Mean Eats never stores your UNT password. You sign in directly on UNT's secure portal.")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
                 .fixedSize(horizontal: false, vertical: true)

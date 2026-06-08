@@ -3,7 +3,7 @@ import Security
 
 // MARK: - Keychain Service
 // Wraps Apple's Security framework for secure string storage.
-// All Eagle Eats sensitive data (session tokens, credential hashes) lives here.
+// All Mean Eats sensitive data (session tokens, credential hashes) lives here.
 // Never store raw passwords — only hashes or session tokens.
 
 final class KeychainService {
@@ -58,7 +58,7 @@ final class KeychainService {
         SecItemDelete(query as CFDictionary)
     }
 
-    /// Delete all Eagle Eats keychain entries (used on sign-out / reset).
+    /// Delete all Mean Eats keychain entries (used on sign-out / reset).
     func deleteAll() {
         for key in KeychainKey.allCases { delete(key) }
     }
