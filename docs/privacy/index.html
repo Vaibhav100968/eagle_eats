@@ -8,34 +8,37 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
     h1, h2 { color: #00853E; }
     a { color: #00853E; }
+    .notice { background: #f4f9f6; border-left: 4px solid #00853E; padding: 12px 16px; margin: 20px 0; font-size: 14px; }
   </style>
 </head>
 <body>
   <p><a href="../">← Mean Eats home</a></p>
   <h1>Privacy Policy</h1>
-  <p><strong>Last updated:</strong> May 2026</p>
+  <p><strong>Last updated:</strong> June 2026</p>
+  <p class="notice"><strong>Disclaimer:</strong> Mean Eats is an independent student project and is not affiliated with or endorsed by the University of North Texas.</p>
   <p>Mean Eats helps UNT students browse dining hall menus, track nutrition, and manage meal plan information. This policy describes what data we collect, how we use it, and your choices.</p>
 
   <h2>Data We Collect</h2>
   <ul>
     <li><strong>Account:</strong> Display name and session state after you sign in through UNT's official meal plan portal. We do not store your UNT password.</li>
+    <li><strong>Guest use:</strong> If you continue without signing in, we assign an anonymous device guest ID stored on your device.</li>
+    <li><strong>Usage analytics:</strong> Anonymous app events (e.g. app launch, screen views) sent to our backend with a guest or auth user ID and event type. We do not use cross-app ad trackers or sell this data.</li>
     <li><strong>Dining activity:</strong> Meals you log, nutrition goals, favorites, and settings stored on your device.</li>
     <li><strong>Location (optional):</strong> Used only to show nearest dining halls when you grant permission.</li>
     <li><strong>Photos (optional):</strong> Only when you add a photo to a menu item review.</li>
-    <li><strong>Check-ins (optional):</strong> Display name and dining hall sent to our backend to show activity counts.</li>
     <li><strong>Feedback &amp; reports:</strong> Content you submit or report.</li>
   </ul>
 
   <h2>Third Parties</h2>
   <ul>
     <li><strong>UNT portal:</strong> Authentication happens on UNT's website in a secure web view.</li>
-    <li><strong>Supabase:</strong> Menu data and optional check-ins are stored on Supabase.</li>
+    <li><strong>Supabase:</strong> Menu data and anonymous usage events are stored on Supabase.</li>
     <li><strong>UNT dining websites:</strong> Public menu data aggregated by our backend for display in the app.</li>
   </ul>
   <p>We do not sell your personal data. Third parties must protect data consistent with this policy.</p>
 
   <h2>Retention &amp; Deletion</h2>
-  <p>Most data is stored on your device. You can delete your account from Settings in the app, which clears local credentials and session data. Server-side check-ins may persist until our retention cleanup runs (typically within 7 days). Contact us to request deletion of other server data tied to you.</p>
+  <p>Most data is stored on your device. You can delete your account from Settings in the app, which clears local credentials and session data. Server-side analytics may be linked to your auth user ID if you later sign in. Contact us to request deletion of other server data tied to you.</p>
 
   <h2>Children</h2>
   <p>Mean Eats is intended for UNT students and is not directed at children under 13. We do not knowingly collect data from children.</p>
