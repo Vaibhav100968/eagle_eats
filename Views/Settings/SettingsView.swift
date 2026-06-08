@@ -208,8 +208,18 @@ struct SettingsView: View {
                                 SettingsNavRow(icon: "doc.text.fill", label: "Privacy Policy", color: .untGreenPrimary)
                             }
                             Divider().padding(.leading, 54)
+                            NavigationLink {
+                                TermsOfServiceView()
+                            } label: {
+                                SettingsNavRow(icon: "doc.plaintext.fill", label: "Terms of Service", color: .untGreenPrimary)
+                            }
+                            Divider().padding(.leading, 54)
                             SettingsLinkRow(icon: "safari.fill", label: "Privacy Policy (Web)", color: .macroCarbs) {
                                 UIApplication.shared.open(AppSupport.privacyPolicyURL)
+                            }
+                            Divider().padding(.leading, 54)
+                            SettingsLinkRow(icon: "safari.fill", label: "Terms of Service (Web)", color: .macroCarbs) {
+                                UIApplication.shared.open(AppSupport.termsURL)
                             }
                             Divider().padding(.leading, 54)
                             SettingsLinkRow(icon: "questionmark.circle.fill", label: "Support (Web)", color: .untGreenPrimary) {
