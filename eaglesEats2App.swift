@@ -42,6 +42,9 @@ struct eaglesEats2App: App {
 
     @MainActor
     private func warmUpEngines() async {
+        _ = GuestIdentityService.shared.ensureGuestId()
+        EventTrackingService.shared.track("app_launch")
+        await EventTrackingService.shared.flushQueue()
         weeklyProfile.refresh()
         analyticsEngine.refresh()
     }

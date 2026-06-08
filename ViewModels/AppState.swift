@@ -6,6 +6,7 @@ import Combine
 enum AuthState: Equatable {
     case unknown
     case onboarding
+    case guest
     case signedIn(identifier: String, displayName: String?)
 
     var isAuthenticated: Bool {
@@ -13,12 +14,15 @@ enum AuthState: Equatable {
         return false
     }
 
+    var isGuest: Bool { self == .guest }
+
     var needsOnboarding: Bool { self == .onboarding }
 
     static func == (lhs: AuthState, rhs: AuthState) -> Bool {
         switch (lhs, rhs) {
         case (.unknown, .unknown),
-             (.onboarding, .onboarding):
+             (.onboarding, .onboarding),
+             (.guest, .guest):
             return true
         case (.signedIn(let a, _), .signedIn(let b, _)):
             return a == b
@@ -64,6 +68,8 @@ final class AppState: ObservableObject {
     private func resolveInitialAuthState() {
         if auth.isSignedIn, let id = auth.identifier {
             authState = .signedIn(identifier: id, displayName: auth.displayName)
+        } else if persistence.isGuestMode {
+            authState = .guest
         } else {
             authState = .onboarding
         }
@@ -71,8 +77,19 @@ final class AppState: ObservableObject {
 
     // MARK: - Auth Actions
 
+    /// Enter the app without UNT login — tracked as a guest user.
+    func continueAsGuest() {
+        persistence.isGuestMode = true
+        persistence.isFirstLaunch = false
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            authState = .guest
+        }
+        EventTrackingService.shared.track("guest_continue")
+    }
+
     /// Called after successful UNT portal login.
     func didSignIn() {
+        persistence.isGuestMode = false
         persistence.isFirstLaunch = false
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             authState = .signedIn(
@@ -80,9 +97,19 @@ final class AppState: ObservableObject {
                 displayName: auth.displayName
             )
         }
+        EventTrackingService.shared.track("sign_in")
+        Task { await EventTrackingService.shared.linkGuestToAuth() }
     }
 
     func signOut() {
+        if case .guest = authState {
+            persistence.isGuestMode = false
+            EventTrackingService.shared.track("guest_sign_out")
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                authState = .onboarding
+            }
+            return
+        }
         auth.signOut()
         MealPlanService.shared.signOut()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
@@ -92,6 +119,8 @@ final class AppState: ObservableObject {
 
     /// Deletes local account data and returns user to onboarding (Guideline 5.1.1).
     func deleteAccount() {
+        EventTrackingService.shared.track("delete_account")
+        persistence.isGuestMode = false
         auth.deleteAccount()
         MealPlanService.shared.signOut()
         clearLocalUserData()

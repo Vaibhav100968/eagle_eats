@@ -14,7 +14,7 @@ struct ContentView: View {
                         insertion: .opacity,
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-            case .signedIn:
+            case .guest, .signedIn:
                 MainTabView()
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),

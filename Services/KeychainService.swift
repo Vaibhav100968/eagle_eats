@@ -59,8 +59,11 @@ final class KeychainService {
     }
 
     /// Delete all Mean Eats keychain entries (used on sign-out / reset).
+    /// Preserves guest_id so device-level analytics stay consistent.
     func deleteAll() {
-        for key in KeychainKey.allCases { delete(key) }
+        for key in KeychainKey.allCases where key != .guestId {
+            delete(key)
+        }
     }
 
     // MARK: - Convenience
@@ -83,6 +86,8 @@ final class KeychainService {
 
 enum KeychainKey: String, CaseIterable {
     case appSessionToken    = "eagle_app_session_token"
+    case authUserId         = "eagle_auth_user_id"         // stable analytics id after login
+    case guestId            = "eagle_guest_id"             // persistent device guest id
     case accountIdentifier  = "eagle_account_identifier"
     case accountDisplayName = "eagle_account_display_name"
     case credentialHash     = "eagle_credential_hash"

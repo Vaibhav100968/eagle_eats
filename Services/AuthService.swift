@@ -57,6 +57,15 @@ final class AuthService: ObservableObject {
 
     // MARK: - Portal Authentication
 
+    /// Stable analytics user id — created on first portal login, survives sign-out.
+    var authUserId: String? {
+        guard isSignedIn else { return nil }
+        if let existing = keychain.load(.authUserId) { return existing }
+        let id = UUID().uuidString
+        keychain.save(id, for: .authUserId)
+        return id
+    }
+
     /// Called after successful UNT portal login (SSO via WKWebView).
     /// Stores the user identity extracted from the portal page.
     func authenticateWithPortal(displayName name: String?) {
@@ -70,6 +79,7 @@ final class AuthService: ObservableObject {
 
         let token = UUID().uuidString
         keychain.save(token, for: .appSessionToken)
+        _ = authUserId
 
         isSignedIn  = true
         displayName = finalName

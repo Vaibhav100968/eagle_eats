@@ -103,6 +103,7 @@ struct MealPlanTab: View {
             }
             guard !hasAppeared else { return }
             hasAppeared = true
+            EventTrackingService.shared.track("view_meal_plan")
 
             switch mealPlanService.authState {
             case .authenticated(let info):
