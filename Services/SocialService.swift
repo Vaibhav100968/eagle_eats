@@ -28,6 +28,7 @@ final class SocialService: ObservableObject {
     // MARK: - Check-in
 
     func checkIn(hallId: String, hallName: String, mealPeriod: String, userName: String?) async {
+        guard AppSupport.publicCheckInsEnabled else { return }
         let checkIn = CheckIn(
             id: UUID().uuidString,
             hallId: hallId,
@@ -55,6 +56,7 @@ final class SocialService: ObservableObject {
 
     /// Fetch how many people checked in to each hall today.
     func fetchCheckInCounts() async {
+        guard AppSupport.publicCheckInsEnabled else { return }
         let today = isoDateString(Date())
         let urlString = "\(supabaseURL)/rest/v1/check_ins?select=hall_id&checked_in_date=eq.\(today)"
         guard let url = URL(string: urlString) else { return }
@@ -81,6 +83,7 @@ final class SocialService: ObservableObject {
 
     /// Fetch recent check-ins across all halls (last 20).
     func fetchRecentCheckIns() async {
+        guard AppSupport.publicCheckInsEnabled else { return }
         let today = isoDateString(Date())
         let urlString = "\(supabaseURL)/rest/v1/check_ins?checked_in_date=eq.\(today)&select=*&order=checked_in_at.desc&limit=20"
         guard let url = URL(string: urlString) else { return }
@@ -145,6 +148,7 @@ final class SocialService: ObservableObject {
     // MARK: - Private: Supabase Push
 
     private func pushCheckIn(_ checkIn: CheckIn) async {
+        guard AppSupport.publicCheckInsEnabled else { return }
         let urlString = "\(supabaseURL)/rest/v1/check_ins"
         guard let url = URL(string: urlString) else { return }
 

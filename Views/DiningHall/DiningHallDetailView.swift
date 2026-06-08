@@ -98,10 +98,12 @@ struct DiningHallDetailView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 8)
 
-                    // MARK: Check-In Bar
-                    checkInBar
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
+                    // MARK: Check-In Bar (disabled for v1 — see AppSupport.publicCheckInsEnabled)
+                    if AppSupport.publicCheckInsEnabled {
+                        checkInBar
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    }
 
                     // MARK: Loading State
                     if diningService.isLoading {
@@ -181,6 +183,10 @@ struct DiningHallDetailView: View {
             PlateBuilderView()
         }
         .onAppear {
+            EventTrackingService.shared.track("view_menu", metadata: [
+                "hall_id": hall.id,
+                "hall_name": hall.name,
+            ])
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.2)) {
                 itemsVisible = true
             }

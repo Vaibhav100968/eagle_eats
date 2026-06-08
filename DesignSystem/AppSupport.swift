@@ -13,4 +13,7 @@ enum AppSupport {
     /// Required for App Store — app is not an official UNT product.
     static let affiliationDisclaimer =
         "Mean Eats is an independent student project and is not affiliated with or endorsed by the University of North Texas."
+
+    /// Public hall check-ins disabled for v1.0 App Review (UGC moderation).
+    static let publicCheckInsEnabled = false
 }
