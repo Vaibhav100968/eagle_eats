@@ -65,13 +65,14 @@ struct WelcomeView: View {
 
                         VStack(spacing: 6) {
                             Text("Built for UNT Students")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.4))
-                        Text("Your credentials go directly to UNT's secure portal")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.3))
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.4))
+                            Text("Your credentials go directly to UNT's secure portal")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.3))
+                        }
+                        .multilineTextAlignment(.center)
                     }
-                    .multilineTextAlignment(.center)
                     .opacity(buttonsVisible ? 1 : 0)
                     .padding(.bottom, 40)
                 }
