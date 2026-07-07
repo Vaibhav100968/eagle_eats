@@ -3,23 +3,272 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mean Eats</title>
+  <meta name="description" content="Mean Eats — UNT dining, beautifully simplified. Browse menus, track nutrition, and manage your meal plan.">
+  <title>Mean Eats — UNT Dining Companion</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
-    h1 { color: #00853E; }
-    a { color: #00853E; }
-    .notice { background: #f4f9f6; border-left: 4px solid #00853E; padding: 12px 16px; margin: 20px 0; font-size: 14px; }
+    :root {
+      --green-dark: #002B16;
+      --green-mid: #004D2C;
+      --green: #00853E;
+      --green-light: #5ED68A;
+      --surface: #f8faf9;
+      --text: #1a1a1a;
+      --text-muted: #5a6b62;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      line-height: 1.65;
+      background: var(--surface);
+    }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 45%, var(--green) 100%);
+      color: #fff;
+      padding: 64px 24px 72px;
+      text-align: center;
+    }
+
+    .hero-icon {
+      width: 88px;
+      height: 88px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 42px;
+    }
+
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .hero .tagline {
+      font-size: 1.05rem;
+      opacity: 0.75;
+      font-weight: 500;
+      margin-bottom: 28px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .app-store-link {
+      display: inline-block;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .app-store-link:hover {
+      transform: scale(1.03);
+      opacity: 0.92;
+    }
+
+    .app-store-link img {
+      height: 52px;
+      width: auto;
+    }
+
+    /* Content */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+
+    .notice {
+      background: #f4f9f6;
+      border-left: 4px solid var(--green);
+      padding: 14px 18px;
+      margin-bottom: 40px;
+      font-size: 14px;
+      border-radius: 0 8px 8px 0;
+      color: var(--text-muted);
+    }
+
+    section { margin-bottom: 44px; }
+
+    h2 {
+      color: var(--green);
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    p { color: var(--text-muted); margin-bottom: 14px; }
+
+    /* Feature grid */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 520px) {
+      .features { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 2rem; }
+    }
+
+    .feature-card {
+      background: #fff;
+      border: 1px solid #e8eeeb;
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .feature-card .icon { font-size: 22px; margin-bottom: 8px; }
+
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* Links */
+    .links {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .links a {
+      color: var(--green);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 8px 16px;
+      border: 1.5px solid var(--green);
+      border-radius: 8px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .links a:hover {
+      background: var(--green);
+      color: #fff;
+    }
+
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid #e8eeeb;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    footer a { color: var(--green); }
   </style>
 </head>
 <body>
-  <h1>Mean Eats</h1>
-  <p class="notice"><strong>Disclaimer:</strong> Mean Eats is an independent student project and is not affiliated with or endorsed by the University of North Texas.</p>
-  <p>Support and legal pages for the Mean Eats iOS app — a dining companion for UNT students.</p>
-  <ul>
-    <li><a href="privacy/">Privacy Policy</a></li>
-    <li><a href="terms/">Terms of Service</a></li>
-    <li><a href="support/">Support</a></li>
-  </ul>
-  <p>Contact: <a href="mailto:va12345bhavg@gmail.com">va12345bhavg@gmail.com</a></p>
+
+  <header class="hero">
+    <div class="hero-icon">🍽️</div>
+    <h1>Mean Eats</h1>
+    <p class="tagline">UNT Dining, Beautifully Simplified</p>
+    <div class="chips">
+      <span class="chip">5 Dining Halls</span>
+      <span class="chip">Macro Tracking</span>
+      <span class="chip">Live Hours</span>
+      <span class="chip">Meal Plan</span>
+      <span class="chip">Guest Mode</span>
+    </div>
+    <a class="app-store-link" href="https://apps.apple.com/me/app/mean-eats/id6778164060" target="_blank" rel="noopener">
+      <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store">
+    </a>
+  </header>
+
+  <main class="container">
+
+    <p class="notice"><strong>Disclaimer:</strong> Mean Eats is an independent student project and is not affiliated with or endorsed by the University of North Texas.</p>
+
+    <section id="about">
+      <h2>About Mean Eats</h2>
+      <p>Eating on campus shouldn't mean juggling five different websites, guessing what's open, or doing mental math on your swipes and Flex balance. Mean Eats brings everything UNT dining into one thoughtfully designed iOS app.</p>
+      <p>Whether you're a freshman exploring Kerr Hall for the first time or a senior making every swipe count, Mean Eats helps you browse menus, track nutrition, find open halls, and stay on top of your meal plan — without the friction.</p>
+      <p>Sign in through UNT's official meal plan portal to see your Dining Swipes and Flex balance with auto-refresh. Or tap <strong>Continue as Guest</strong> to explore menus, maps, and nutrition info with no account needed. Mean Eats never stores your UNT password.</p>
+    </section>
+
+    <section id="features">
+      <h2>What You Can Do</h2>
+      <div class="features">
+        <div class="feature-card">
+          <div class="icon">📋</div>
+          <h3>Live Menus</h3>
+          <p>Daily menus for all five UNT dining halls, updated automatically.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">🥗</div>
+          <h3>Plate Builder</h3>
+          <p>Build a virtual plate and track calories, protein, carbs, and fat.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">💳</div>
+          <h3>Swipes &amp; Flex</h3>
+          <p>See your meal plan balances and spending insights at a glance.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">📍</div>
+          <h3>Hall Hours &amp; Maps</h3>
+          <p>Find what's open right now and get directions to the nearest hall.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">✨</div>
+          <h3>Smart Picks</h3>
+          <p>Personalized recommendations based on time, diet, and your habits.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">📶</div>
+          <h3>Works Offline</h3>
+          <p>Cached menus keep working when campus Wi-Fi gets spotty.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="legal">
+      <h2>Support &amp; Legal</h2>
+      <ul class="links">
+        <li><a href="privacy/">Privacy Policy</a></li>
+        <li><a href="terms/">Terms of Service</a></li>
+        <li><a href="support/">Support</a></li>
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Questions? <a href="mailto:va12345bhavg@gmail.com">va12345bhavg@gmail.com</a></p>
+    <p style="margin-top:8px;">Made with care for the UNT community.</p>
+  </footer>
+
 </body>
 </html>
