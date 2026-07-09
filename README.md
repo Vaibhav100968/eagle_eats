@@ -45,6 +45,44 @@ Requires iOS 17 or later. Built for iPhone.
 
 ---
 
+## Quick start (developers)
+
+```bash
+git clone https://github.com/Vaibhav100968/MeanEats.git
+cd MeanEats
+brew install xcodegen          # once
+cp Secrets.plist.example Secrets.plist   # add your Supabase URL + anon key
+xcodegen generate
+open eaglesEats2.xcodeproj     # Run on an iPhone simulator (iOS 17+)
+```
+
+Full walkthrough (signing, guest mode, backend, troubleshooting): **[docs/SETUP.md](docs/SETUP.md)**
+
+### Tests & QA
+
+```bash
+./scripts/run-tests.sh
+```
+
+| Suite | Location |
+|-------|----------|
+| Swift unit tests | `Tests/MeanEatsTests/` (meal periods, portal parsing, content filter) |
+| Python scraper tests | `backend/lambda_scraper/test_scraper.py` |
+| Runner script | `scripts/run-tests.sh` |
+
+---
+
+## Documentation
+
+| Doc | What it covers |
+|-----|----------------|
+| [Setup guide](docs/SETUP.md) | Clone, secrets, XcodeGen, run, test, optional Lambda |
+| [Architecture](docs/ARCHITECTURE.md) | System diagram, client layers, auth, scrape pipeline, design decisions |
+| [App Store review notes](docs/app-review-notes.md) | Reviewer context for Guideline compliance |
+| [GitHub Pages](docs/README.md) | Privacy / terms / support hosting |
+
+---
+
 ## Support & Legal
 
 - [Privacy Policy](https://vaibhav100968.github.io/MeanEats/privacy/)
@@ -57,6 +95,6 @@ Requires iOS 17 or later. Built for iPhone.
 
 ## Built With
 
-Swift · SwiftUI · Supabase · AWS Lambda
+Swift · SwiftUI · Supabase · AWS Lambda · XcodeGen
 
 Made with care for the UNT community.

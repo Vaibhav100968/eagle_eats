@@ -1,10 +1,15 @@
 name: eaglesEats2
 options:
-  bundleIdPrefix: com.vaibhav08
+  bundleIdPrefix: com.vaibhavg
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: false
+
+settings:
+  base:
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: BJ5CP7G4SR
 
 targets:
   eaglesEats2:
@@ -18,11 +23,17 @@ targets:
           - ".gitignore"
           - ".claude/**"
           - ".derivedData/**"
+          - "build/**"
           - "EagleEatsWidget/**"
           - "backend/**"
           - "docs/**"
+          - "Tests/**"
+          - "scripts/**"
           - ".github/**"
           - "Secrets.plist.example"
+          - "eaglesEats2.entitlements"
+          - "EagleEatsWidget/EagleEatsWidget.entitlements"
+          - "README.md"
     info:
       path: Info.plist
       properties:
@@ -34,6 +45,7 @@ targets:
         NSLocationWhenInUseUsageDescription: "Mean Eats uses your location to show the nearest UNT dining halls."
         NSCameraUsageDescription: "Mean Eats uses the camera so you can add photos to menu item reviews."
         NSPhotoLibraryUsageDescription: "Mean Eats accesses your photo library so you can attach photos to menu reviews."
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vaibhavg.meaneats.app2
@@ -41,16 +53,13 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: BJ5CP7G4SR
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - target: EagleEatsWidget
         embed: true
-    entitlements:
-      path: eaglesEats2.entitlements
     resources:
       - path: PrivacyInfo.xcprivacy
 
@@ -73,12 +82,27 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: BJ5CP7G4SR
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         TARGETED_DEVICE_FAMILY: "1"
-    entitlements:
-      path: EagleEatsWidget/EagleEatsWidget.entitlements
+        SKIP_INSTALL: YES
+
+  MeanEatsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/MeanEatsTests
+    dependencies:
+      - target: eaglesEats2
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vaibhavg.meaneats.app2.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/eaglesEats2.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/eaglesEats2"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
 
 schemes:
   eaglesEats2:
@@ -86,13 +110,14 @@ schemes:
       targets:
         eaglesEats2: all
         EagleEatsWidget: all
+        MeanEatsTests: [test]
     run:
       config: Debug
       executable: eaglesEats2
     test:
       config: Debug
       targets:
-        - eaglesEats2
+        - MeanEatsTests
     profile:
       config: Release
       executable: eaglesEats2
